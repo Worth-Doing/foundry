@@ -1,6 +1,7 @@
 import Foundation
 
 /// Loads real Claude Code session data from ~/.claude/
+/// The source of truth is JSONL files in ~/.claude/projects/*/*.jsonl
 struct ClaudeHistoryLoader {
 
     static let claudeDir: URL = {
@@ -8,110 +9,172 @@ struct ClaudeHistoryLoader {
         return home.appendingPathComponent(".claude", isDirectory: true)
     }()
 
-    static var sessionsDir: URL {
-        claudeDir.appendingPathComponent("sessions", isDirectory: true)
-    }
-
     static var projectsDir: URL {
         claudeDir.appendingPathComponent("projects", isDirectory: true)
     }
 
-    // MARK: - Load all sessions metadata
+    // MARK: - Discover all sessions from JSONL files
 
-    struct ClaudeSessionMeta: Codable {
-        let pid: Int?
+    struct DiscoveredSession {
         let sessionId: String
-        let cwd: String?
-        let startedAt: Int64?
-        let kind: String?
-        let entrypoint: String?
-        let name: String?
+        let projectDirName: String
+        let jsonlPath: URL
+        let cwd: String
+        let model: String
+        let name: String
+        let startedAt: Date
+        let lineCount: Int
+        let usage: TokenUsage
     }
 
-    static func loadAllSessionMetas() -> [ClaudeSessionMeta] {
+    /// Scan all JSONL files in ~/.claude/projects/ to discover every session
+    static func discoverAllSessions() -> [DiscoveredSession] {
         let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(
-            at: sessionsDir,
-            includingPropertiesForKeys: nil,
-            options: .skipsHiddenFiles
-        ) else { return [] }
+        var results: [DiscoveredSession] = []
 
-        return files
-            .filter { $0.pathExtension == "json" }
-            .compactMap { url -> ClaudeSessionMeta? in
-                guard let data = try? Data(contentsOf: url) else { return nil }
-                return try? JSONDecoder().decode(ClaudeSessionMeta.self, from: data)
-            }
-            .sorted { ($0.startedAt ?? 0) > ($1.startedAt ?? 0) }
-    }
-
-    // MARK: - Find conversation JSONL for a session
-
-    static func findConversationFile(sessionId: String) -> URL? {
-        let fm = FileManager.default
         guard let projectDirs = try? fm.contentsOfDirectory(
             at: projectsDir,
             includingPropertiesForKeys: nil,
             options: .skipsHiddenFiles
-        ) else { return nil }
+        ) else { return [] }
 
         for dir in projectDirs {
-            let jsonlFile = dir.appendingPathComponent("\(sessionId).jsonl")
-            if fm.fileExists(atPath: jsonlFile.path) {
-                return jsonlFile
-            }
-        }
-        return nil
-    }
+            var isDirectory: ObjCBool = false
+            guard fm.fileExists(atPath: dir.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else { continue }
 
-    // MARK: - Load conversation events from JSONL
+            // Skip non-session directories (memory, etc.)
+            let dirName = dir.lastPathComponent
+            if dirName == "." || dirName == ".." { continue }
 
-    struct ConversationEntry: Codable {
-        let type: String
-        let uuid: String?
-        let parentUuid: String?
-        let timestamp: String?
-        let message: MessageValue?
-        let sessionId: String?
-        let cwd: String?
-        let version: String?
-        let permissionMode: String?
-        let filePath: String?
+            guard let files = try? fm.contentsOfDirectory(
+                at: dir,
+                includingPropertiesForKeys: [.fileSizeKey],
+                options: .skipsHiddenFiles
+            ) else { continue }
 
-        // For file-history-snapshot
-        let messageId: String?
+            for file in files where file.pathExtension == "jsonl" {
+                let sessionId = file.deletingPathExtension().lastPathComponent
 
-        enum MessageValue: Codable {
-            case string(String)
-            case dict([String: AnyCodable])
-
-            init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                if let s = try? container.decode(String.self) {
-                    self = .string(s)
-                } else if let d = try? container.decode([String: AnyCodable].self) {
-                    self = .dict(d)
-                } else {
-                    self = .string("")
-                }
-            }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                switch self {
-                case .string(let s): try container.encode(s)
-                case .dict(let d): try container.encode(d)
+                // Quick parse: read first lines for metadata, scan all for usage
+                if let session = parseSessionFile(
+                    jsonlPath: file,
+                    sessionId: sessionId,
+                    projectDirName: dirName
+                ) {
+                    results.append(session)
                 }
             }
         }
+
+        return results.sorted { $0.startedAt > $1.startedAt }
     }
 
-    static func loadConversation(sessionId: String) -> [SessionEvent] {
-        guard let fileURL = findConversationFile(sessionId: sessionId) else {
-            return []
+    /// Parse a session JSONL file to extract metadata and usage
+    private static func parseSessionFile(
+        jsonlPath: URL,
+        sessionId: String,
+        projectDirName: String
+    ) -> DiscoveredSession? {
+        guard let content = try? String(contentsOf: jsonlPath, encoding: .utf8) else {
+            return nil
         }
-        return loadConversationFromFile(fileURL)
+
+        let lines = content.components(separatedBy: .newlines)
+        var cwd = ""
+        var model = ""
+        var name = ""
+        var startedAt = Date.distantPast
+        var totalInput = 0
+        var totalOutput = 0
+        var totalCacheRead = 0
+        var totalCacheWrite = 0
+        var lineCount = 0
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            lineCount += 1
+
+            guard let data = trimmed.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                continue
+            }
+
+            let type = json["type"] as? String ?? ""
+
+            // Extract metadata from first user or system message
+            if cwd.isEmpty {
+                if let c = json["cwd"] as? String, !c.isEmpty {
+                    cwd = c
+                }
+            }
+            if startedAt == Date.distantPast {
+                if let ts = json["timestamp"] as? String {
+                    startedAt = parseTimestamp(ts)
+                }
+            }
+            if let n = json["name"] as? String, !n.isEmpty, name.isEmpty {
+                name = n
+            }
+
+            // Extract usage from assistant messages
+            if type == "assistant" {
+                let messageDict = extractMessageDict(json["message"])
+                if let msg = messageDict {
+                    if model.isEmpty, let m = msg["model"] as? String {
+                        model = m
+                    }
+                    if let usage = msg["usage"] as? [String: Any] {
+                        totalInput += usage["input_tokens"] as? Int ?? 0
+                        totalOutput += usage["output_tokens"] as? Int ?? 0
+                        totalCacheRead += usage["cache_read_input_tokens"] as? Int ?? 0
+                        totalCacheWrite += usage["cache_creation_input_tokens"] as? Int ?? 0
+                    }
+                }
+            }
+        }
+
+        guard lineCount > 0 else { return nil }
+
+        // Derive CWD from project dir name if not found in data
+        if cwd.isEmpty {
+            cwd = projectDirName.replacingOccurrences(of: "-", with: "/")
+            if !cwd.hasPrefix("/") {
+                cwd = "/" + cwd
+            }
+        }
+
+        // Calculate cost
+        let cost = calculateCost(
+            model: model,
+            inputTokens: totalInput,
+            outputTokens: totalOutput,
+            cacheReadTokens: totalCacheRead,
+            cacheWriteTokens: totalCacheWrite
+        )
+
+        var usage = TokenUsage()
+        usage.inputTokens = totalInput
+        usage.outputTokens = totalOutput
+        usage.cacheReadTokens = totalCacheRead
+        usage.cacheWriteTokens = totalCacheWrite
+        usage.estimatedCostUSD = cost
+
+        return DiscoveredSession(
+            sessionId: sessionId,
+            projectDirName: projectDirName,
+            jsonlPath: jsonlPath,
+            cwd: cwd,
+            model: model.isEmpty ? "claude-opus-4-6" : model,
+            name: name,
+            startedAt: startedAt == Date.distantPast ? Date() : startedAt,
+            lineCount: lineCount,
+            usage: usage
+        )
     }
+
+    // MARK: - Load conversation events from a JSONL file
 
     static func loadConversationFromFile(_ fileURL: URL) -> [SessionEvent] {
         guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else {
@@ -125,8 +188,6 @@ struct ClaudeHistoryLoader {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
             guard let data = trimmed.data(using: .utf8) else { continue }
-
-            // Parse as generic JSON first
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 continue
             }
@@ -136,22 +197,15 @@ struct ClaudeHistoryLoader {
 
             switch type {
             case "user":
-                let parsed = parseUserEntry(json, timestamp: timestamp)
-                events.append(contentsOf: parsed)
-
+                events.append(contentsOf: parseUserEntry(json, timestamp: timestamp))
             case "assistant":
-                let parsed = parseAssistantEntry(json, timestamp: timestamp)
-                events.append(contentsOf: parsed)
-
+                events.append(contentsOf: parseAssistantEntry(json, timestamp: timestamp))
             case "system":
-                if let msg = extractMessageString(json) {
+                if let content = extractPlainContent(json) {
                     events.append(SessionEvent(
-                        type: .systemInfo,
-                        content: msg,
-                        timestamp: timestamp
+                        type: .systemInfo, content: content, timestamp: timestamp
                     ))
                 }
-
             case "permission-mode":
                 let mode = json["permissionMode"] as? String ?? "default"
                 events.append(SessionEvent(
@@ -159,7 +213,6 @@ struct ClaudeHistoryLoader {
                     content: "Permission mode: \(mode)",
                     timestamp: timestamp
                 ))
-
             default:
                 break
             }
@@ -168,48 +221,62 @@ struct ClaudeHistoryLoader {
         return events
     }
 
-    // MARK: - Parse entries
+    // MARK: - Convert discovered sessions to Foundry Sessions
+
+    static func loadAllAsFoundrySessions() -> [Session] {
+        let discovered = discoverAllSessions()
+        return discovered.map { d in
+            let dirName = URL(fileURLWithPath: d.cwd).lastPathComponent
+            var session = Session(
+                name: d.name.isEmpty ? dirName : d.name,
+                projectPath: d.cwd,
+                modelName: d.model
+            )
+            session.claudeSessionID = d.sessionId
+            session.status = .stopped
+            session.createdAt = d.startedAt
+            session.updatedAt = d.startedAt
+            session.tokenUsage = d.usage
+            return session
+        }
+    }
+
+    // MARK: - Parse user entry
 
     private static func parseUserEntry(_ json: [String: Any], timestamp: Date) -> [SessionEvent] {
         var events: [SessionEvent] = []
-
-        guard let messageRaw = json["message"] else { return events }
-
-        let messageDict: [String: Any]
-        if let s = messageRaw as? String {
-            // Python dict repr string - parse it
-            if let parsed = parsePythonDict(s) {
-                messageDict = parsed
-            } else {
+        guard let messageDict = extractMessageDict(json["message"]) else {
+            // Try as plain string
+            if let s = json["message"] as? String, !s.isEmpty {
                 events.append(SessionEvent(type: .userInput, content: s, timestamp: timestamp))
-                return events
             }
-        } else if let d = messageRaw as? [String: Any] {
-            messageDict = d
-        } else {
             return events
         }
 
         let content = messageDict["content"]
 
         if let text = content as? String {
-            events.append(SessionEvent(type: .userInput, content: text, timestamp: timestamp))
+            if !text.isEmpty {
+                events.append(SessionEvent(type: .userInput, content: text, timestamp: timestamp))
+            }
         } else if let blocks = content as? [[String: Any]] {
-            // Check if these are tool_results
             for block in blocks {
                 let blockType = block["type"] as? String ?? ""
                 if blockType == "tool_result" {
-                    let toolContent = extractToolResultContent(block)
+                    let resultContent = extractToolResultContent(block)
                     let isError = block["is_error"] as? Bool ?? false
-                    events.append(SessionEvent(
-                        type: isError ? .error : .toolResult,
-                        content: toolContent,
-                        metadata: EventMetadata(toolName: block["tool_use_id"] as? String),
-                        timestamp: timestamp
-                    ))
+                    if !resultContent.isEmpty {
+                        events.append(SessionEvent(
+                            type: isError ? .error : .toolResult,
+                            content: String(resultContent.prefix(2000)),
+                            timestamp: timestamp
+                        ))
+                    }
                 } else if blockType == "text" {
                     let text = block["text"] as? String ?? ""
-                    events.append(SessionEvent(type: .userInput, content: text, timestamp: timestamp))
+                    if !text.isEmpty {
+                        events.append(SessionEvent(type: .userInput, content: text, timestamp: timestamp))
+                    }
                 }
             }
         }
@@ -217,22 +284,11 @@ struct ClaudeHistoryLoader {
         return events
     }
 
+    // MARK: - Parse assistant entry
+
     private static func parseAssistantEntry(_ json: [String: Any], timestamp: Date) -> [SessionEvent] {
         var events: [SessionEvent] = []
-
-        guard let messageRaw = json["message"] else { return events }
-
-        let messageDict: [String: Any]
-        if let s = messageRaw as? String {
-            if let parsed = parsePythonDict(s) {
-                messageDict = parsed
-            } else {
-                events.append(SessionEvent(type: .assistantMessage, content: s, timestamp: timestamp))
-                return events
-            }
-        } else if let d = messageRaw as? [String: Any] {
-            messageDict = d
-        } else {
+        guard let messageDict = extractMessageDict(json["message"]) else {
             return events
         }
 
@@ -248,9 +304,7 @@ struct ClaudeHistoryLoader {
                 let text = block["text"] as? String ?? ""
                 if !text.isEmpty {
                     events.append(SessionEvent(
-                        type: .assistantMessage,
-                        content: text,
-                        timestamp: timestamp
+                        type: .assistantMessage, content: text, timestamp: timestamp
                     ))
                 }
 
@@ -259,7 +313,7 @@ struct ClaudeHistoryLoader {
                 if !thinking.isEmpty {
                     events.append(SessionEvent(
                         type: .thinking,
-                        content: thinking,
+                        content: String(thinking.prefix(500)),
                         timestamp: timestamp
                     ))
                 }
@@ -267,11 +321,10 @@ struct ClaudeHistoryLoader {
             case "tool_use":
                 let toolName = block["name"] as? String ?? "unknown"
                 let input = block["input"] as? [String: Any] ?? [:]
-                let inputStr = formatToolInput(toolName: toolName, input: input)
-
-                let eventType: EventType
+                let content = formatToolInput(toolName: toolName, input: input)
                 var metadata = EventMetadata(toolName: toolName)
 
+                let eventType: EventType
                 switch toolName {
                 case "Bash":
                     eventType = .bashCommand
@@ -285,10 +338,7 @@ struct ClaudeHistoryLoader {
                 case "Edit":
                     eventType = .fileEdit
                     metadata.filePath = input["file_path"] as? String
-                case "Grep":
-                    eventType = .search
-                    metadata.searchPattern = input["pattern"] as? String
-                case "Glob":
+                case "Grep", "Glob":
                     eventType = .search
                     metadata.searchPattern = input["pattern"] as? String
                 case "Agent":
@@ -299,10 +349,8 @@ struct ClaudeHistoryLoader {
                 }
 
                 events.append(SessionEvent(
-                    type: eventType,
-                    content: inputStr,
-                    metadata: metadata,
-                    timestamp: timestamp
+                    type: eventType, content: content,
+                    metadata: metadata, timestamp: timestamp
                 ))
 
             default:
@@ -315,32 +363,18 @@ struct ClaudeHistoryLoader {
 
     // MARK: - Helpers
 
-    private static func parseTimestamp(_ value: Any?) -> Date {
-        if let str = value as? String {
-            // ISO 8601
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = formatter.date(from: str) {
-                return date
-            }
-            // Try milliseconds
-            if let ms = Int64(str) {
-                return Date(timeIntervalSince1970: Double(ms) / 1000.0)
-            }
+    private static func extractMessageDict(_ raw: Any?) -> [String: Any]? {
+        if let d = raw as? [String: Any] {
+            return d
         }
-        if let ms = value as? Int64 {
-            return Date(timeIntervalSince1970: Double(ms) / 1000.0)
+        if let s = raw as? String {
+            return parsePythonDict(s)
         }
-        if let ms = value as? Int {
-            return Date(timeIntervalSince1970: Double(ms) / 1000.0)
-        }
-        return Date()
+        return nil
     }
 
-    private static func extractMessageString(_ json: [String: Any]) -> String? {
-        if let msg = json["message"] as? String {
-            return msg
-        }
+    private static func extractPlainContent(_ json: [String: Any]) -> String? {
+        if let msg = json["message"] as? String { return msg }
         if let msg = json["message"] as? [String: Any] {
             return msg["content"] as? String
         }
@@ -373,40 +407,52 @@ struct ClaudeHistoryLoader {
             let contentLen = (input["content"] as? String)?.count ?? 0
             return "\(path) (\(contentLen) chars)"
         case "Edit":
-            let path = input["file_path"] as? String ?? ""
-            let old = input["old_string"] as? String ?? ""
-            return "\(path) (replacing \(old.count) chars)"
+            return input["file_path"] as? String ?? ""
         case "Grep":
-            let pattern = input["pattern"] as? String ?? ""
-            let path = input["path"] as? String ?? "."
-            return "\(pattern) in \(path)"
+            return "grep: \(input["pattern"] as? String ?? "")"
         case "Glob":
-            return input["pattern"] as? String ?? ""
+            return "glob: \(input["pattern"] as? String ?? "")"
         case "Agent":
             return input["description"] as? String ?? input["prompt"] as? String ?? ""
         case "TaskCreate":
             return input["subject"] as? String ?? ""
         case "TaskUpdate":
-            let id = input["taskId"] as? String ?? ""
-            let status = input["status"] as? String ?? ""
-            return "Task #\(id) → \(status)"
+            return "Task #\(input["taskId"] as? String ?? "") → \(input["status"] as? String ?? "")"
         default:
             if let data = try? JSONSerialization.data(withJSONObject: input, options: []),
                let str = String(data: data, encoding: .utf8) {
-                return String(str.prefix(200))
+                return String(str.prefix(300))
             }
             return ""
         }
     }
 
-    /// Parse Python dict repr as JSON (handles common cases)
+    private static func parseTimestamp(_ value: Any?) -> Date {
+        if let str = value as? String {
+            // ISO 8601
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatter.date(from: str) { return date }
+            // Milliseconds as string
+            if let ms = Int64(str) {
+                return Date(timeIntervalSince1970: Double(ms) / 1000.0)
+            }
+        }
+        if let ms = value as? Int64 {
+            return Date(timeIntervalSince1970: Double(ms) / 1000.0)
+        }
+        if let ms = value as? Int {
+            return Date(timeIntervalSince1970: Double(ms) / 1000.0)
+        }
+        return Date()
+    }
+
+    /// Parse Python dict repr as JSON
     private static func parsePythonDict(_ s: String) -> [String: Any]? {
-        // Replace Python-specific syntax with JSON
         var json = s
         json = json.replacingOccurrences(of: "None", with: "null")
         json = json.replacingOccurrences(of: "True", with: "true")
         json = json.replacingOccurrences(of: "False", with: "false")
-        // Replace single quotes with double quotes (simplified)
         json = json.replacingOccurrences(of: "'", with: "\"")
 
         guard let data = json.data(using: .utf8),
@@ -416,37 +462,45 @@ struct ClaudeHistoryLoader {
         return dict
     }
 
-    // MARK: - Load all sessions as Foundry Sessions
+    // MARK: - Cost calculation
 
-    static func loadAllClaudeSessions() -> [Session] {
-        let metas = loadAllSessionMetas()
-        return metas.map { meta in
-            let startDate: Date
-            if let ms = meta.startedAt {
-                startDate = Date(timeIntervalSince1970: Double(ms) / 1000.0)
-            } else {
-                startDate = Date()
-            }
+    static func calculateCost(
+        model: String,
+        inputTokens: Int,
+        outputTokens: Int,
+        cacheReadTokens: Int,
+        cacheWriteTokens: Int
+    ) -> Double {
+        // Pricing per million tokens (USD)
+        let inputPrice: Double
+        let outputPrice: Double
+        let cacheReadPrice: Double
+        let cacheWritePrice: Double
 
-            let projectPath = meta.cwd ?? "~"
-            let dirName = URL(fileURLWithPath: projectPath).lastPathComponent
-
-            var session = Session(
-                name: meta.name ?? dirName,
-                projectPath: projectPath,
-                modelName: "claude-sonnet-4-6"
-            )
-            session.claudeSessionID = meta.sessionId
-            session.status = .stopped
-            session.createdAt = startDate
-            session.updatedAt = startDate
-
-            return session
+        if model.contains("opus") {
+            inputPrice = 15.0
+            outputPrice = 75.0
+            cacheReadPrice = 1.50
+            cacheWritePrice = 18.75
+        } else if model.contains("haiku") {
+            inputPrice = 0.80
+            outputPrice = 4.0
+            cacheReadPrice = 0.08
+            cacheWritePrice = 1.0
+        } else {
+            // Sonnet default
+            inputPrice = 3.0
+            outputPrice = 15.0
+            cacheReadPrice = 0.30
+            cacheWritePrice = 3.75
         }
-    }
 
-    static func loadSessionEvents(claudeSessionId: String) -> [SessionEvent] {
-        return loadConversation(sessionId: claudeSessionId)
+        let cost = (Double(inputTokens) * inputPrice / 1_000_000) +
+                   (Double(outputTokens) * outputPrice / 1_000_000) +
+                   (Double(cacheReadTokens) * cacheReadPrice / 1_000_000) +
+                   (Double(cacheWriteTokens) * cacheWritePrice / 1_000_000)
+
+        return cost
     }
 }
 

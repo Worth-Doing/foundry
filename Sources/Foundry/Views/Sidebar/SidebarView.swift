@@ -171,6 +171,12 @@ struct SessionRow: View {
                         .frame(width: 16, height: 16)
                 }
 
+                if session.tokenUsage.estimatedCostUSD > 0 {
+                    Text(String(format: "$%.2f", session.tokenUsage.estimatedCostUSD))
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.green)
+                }
+
                 Text(session.createdAt, style: .relative)
                     .font(.caption2)
                     .foregroundStyle(.tertiary)

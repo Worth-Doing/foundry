@@ -11,6 +11,8 @@ class SessionManager: ObservableObject {
     @Published var claudeVersion: String?
     @Published var isLoadingHistory: Bool = false
 
+    /// Map from Foundry session UUID to the JSONL file path for lazy loading events
+    private var jsonlPaths: [UUID: URL] = [:]
     private var controllers: [UUID: ClaudeProcessController] = [:]
 
     var activeSession: Session? {
@@ -35,44 +37,55 @@ class SessionManager: ObservableObject {
         }
     }
 
-    // MARK: - Load real Claude Code session history
+    // MARK: - Load ALL real Claude Code sessions from JSONL files
 
     func loadClaudeHistory() {
         isLoadingHistory = true
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let claudeSessions = ClaudeHistoryLoader.loadAllClaudeSessions()
+            let discovered = ClaudeHistoryLoader.discoverAllSessions()
 
             DispatchQueue.main.async {
                 guard let self = self else { return }
-                // Merge with existing sessions (don't duplicate)
+
+                // Track existing claude session IDs to avoid duplicates
                 let existingClaudeIDs = Set(self.sessions.compactMap(\.claudeSessionID))
 
-                for session in claudeSessions {
-                    if let cid = session.claudeSessionID, !existingClaudeIDs.contains(cid) {
-                        self.sessions.append(session)
-                    }
+                for d in discovered {
+                    guard !existingClaudeIDs.contains(d.sessionId) else { continue }
+
+                    let dirName = URL(fileURLWithPath: d.cwd).lastPathComponent
+                    var session = Session(
+                        name: d.name.isEmpty ? dirName : d.name,
+                        projectPath: d.cwd,
+                        modelName: d.model
+                    )
+                    session.claudeSessionID = d.sessionId
+                    session.status = .stopped
+                    session.createdAt = d.startedAt
+                    session.updatedAt = d.startedAt
+                    session.tokenUsage = d.usage
+
+                    self.sessions.append(session)
+                    self.jsonlPaths[session.id] = d.jsonlPath
                 }
 
-                // Sort by most recent
-                self.sessions.sort { $0.updatedAt > $1.updatedAt }
+                self.sessions.sort { $0.createdAt > $1.createdAt }
                 self.isLoadingHistory = false
             }
         }
     }
 
-    /// Load conversation events for a session from Claude Code history
+    /// Load conversation events for a session (lazy - only when selected)
     func loadSessionEvents(for sessionID: UUID) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }),
-              let claudeSessionID = sessions[index].claudeSessionID else {
+              sessions[index].events.isEmpty,
+              let jsonlPath = jsonlPaths[sessionID] else {
             return
         }
 
-        // Only load if events are empty
-        guard sessions[index].events.isEmpty else { return }
-
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let events = ClaudeHistoryLoader.loadSessionEvents(claudeSessionId: claudeSessionID)
+            let events = ClaudeHistoryLoader.loadConversationFromFile(jsonlPath)
 
             DispatchQueue.main.async {
                 guard let self = self,
@@ -133,11 +146,9 @@ class SessionManager: ObservableObject {
     }
 
     func sendMessage(to sessionID: UUID, message: String) {
-        // Ensure we have a controller
         if controllers[sessionID] == nil {
             startSession(sessionID)
         }
-
         guard let controller = controllers[sessionID] else { return }
         controller.sendMessage(message)
     }
@@ -156,6 +167,7 @@ class SessionManager: ObservableObject {
     func deleteSession(_ sessionID: UUID) {
         controllers[sessionID]?.stop()
         controllers.removeValue(forKey: sessionID)
+        jsonlPaths.removeValue(forKey: sessionID)
         sessions.removeAll(where: { $0.id == sessionID })
         if activeSessionID == sessionID {
             activeSessionID = sessions.first?.id
@@ -164,7 +176,6 @@ class SessionManager: ObservableObject {
 
     func switchToSession(_ sessionID: UUID) {
         activeSessionID = sessionID
-        // Load events if not already loaded
         loadSessionEvents(for: sessionID)
     }
 
@@ -172,25 +183,19 @@ class SessionManager: ObservableObject {
 
     private func handleEvent(sessionID: UUID, event: SessionEvent) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
-
         sessions[index].events.append(event)
         sessions[index].updatedAt = Date()
 
-        // Track file changes
         if event.type == .fileWrite || event.type == .fileEdit {
             if let path = event.metadata?.filePath {
-                let change = FileChange(
-                    filePath: path,
-                    changeType: event.type == .fileWrite ? .created : .modified
+                sessions[index].fileChanges.append(
+                    FileChange(filePath: path, changeType: event.type == .fileWrite ? .created : .modified)
                 )
-                sessions[index].fileChanges.append(change)
             }
         }
 
-        // Capture Claude session ID
         if event.type == .sessionStart {
-            if let controller = controllers[sessionID],
-               let csid = controller.claudeSessionID {
+            if let controller = controllers[sessionID], let csid = controller.claudeSessionID {
                 sessions[index].claudeSessionID = csid
             }
         }
@@ -199,7 +204,6 @@ class SessionManager: ObservableObject {
     private func handleLog(sessionID: UUID, log: LogEntry) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
         sessions[index].rawLogs.append(log)
-
         if sessions[index].rawLogs.count > 10000 {
             sessions[index].rawLogs.removeFirst(1000)
         }
@@ -207,22 +211,11 @@ class SessionManager: ObservableObject {
 
     private func handleUsage(sessionID: UUID, usage: TokenUsage) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
-
-        if usage.estimatedCostUSD > 0 {
-            sessions[index].tokenUsage.estimatedCostUSD = usage.estimatedCostUSD
-        }
-        if usage.inputTokens > 0 {
-            sessions[index].tokenUsage.inputTokens = usage.inputTokens
-        }
-        if usage.outputTokens > 0 {
-            sessions[index].tokenUsage.outputTokens = usage.outputTokens
-        }
-        if usage.cacheReadTokens > 0 {
-            sessions[index].tokenUsage.cacheReadTokens = usage.cacheReadTokens
-        }
-        if usage.cacheWriteTokens > 0 {
-            sessions[index].tokenUsage.cacheWriteTokens = usage.cacheWriteTokens
-        }
+        if usage.estimatedCostUSD > 0 { sessions[index].tokenUsage.estimatedCostUSD = usage.estimatedCostUSD }
+        if usage.inputTokens > 0 { sessions[index].tokenUsage.inputTokens = usage.inputTokens }
+        if usage.outputTokens > 0 { sessions[index].tokenUsage.outputTokens = usage.outputTokens }
+        if usage.cacheReadTokens > 0 { sessions[index].tokenUsage.cacheReadTokens = usage.cacheReadTokens }
+        if usage.cacheWriteTokens > 0 { sessions[index].tokenUsage.cacheWriteTokens = usage.cacheWriteTokens }
     }
 
     private func handleStatusChange(sessionID: UUID, status: SessionStatus) {
