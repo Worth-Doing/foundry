@@ -1,29 +1,37 @@
 import Foundation
 
-/// Manages a single Claude Code process lifecycle and I/O
+/// Manages Claude Code process lifecycle and I/O
+/// Uses --print --output-format stream-json --verbose for structured output
+/// Each message spawns a new process with --resume for multi-turn
 final class ClaudeProcessController: Sendable {
-    private let sessionID: UUID
-    private let projectPath: String
-    private let modelName: String
+    let sessionID: UUID
+    let projectPath: String
+    let modelName: String
     private let onEvent: @Sendable (SessionEvent) -> Void
     private let onLog: @Sendable (LogEntry) -> Void
     private let onUsage: @Sendable (TokenUsage) -> Void
-    private let onExit: @Sendable (Int32) -> Void
+    private let onStatusChange: @Sendable (SessionStatus) -> Void
 
-    private let processLock = NSLock()
+    private let lock = NSLock()
     private nonisolated(unsafe) var _process: Process?
-    private nonisolated(unsafe) var _stdinPipe: Pipe?
     private nonisolated(unsafe) var _isRunning: Bool = false
+    private nonisolated(unsafe) var _claudeSessionID: String?
 
     var isRunning: Bool {
-        processLock.lock()
-        defer { processLock.unlock() }
+        lock.lock()
+        defer { lock.unlock() }
         return _isRunning
     }
 
+    var claudeSessionID: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _claudeSessionID
+    }
+
     var processIdentifier: Int32? {
-        processLock.lock()
-        defer { processLock.unlock() }
+        lock.lock()
+        defer { lock.unlock() }
         return _process?.processIdentifier
     }
 
@@ -31,200 +39,301 @@ final class ClaudeProcessController: Sendable {
         sessionID: UUID,
         projectPath: String,
         modelName: String = "claude-sonnet-4-6",
+        claudeSessionID: String? = nil,
         onEvent: @escaping @Sendable (SessionEvent) -> Void,
         onLog: @escaping @Sendable (LogEntry) -> Void,
         onUsage: @escaping @Sendable (TokenUsage) -> Void,
-        onExit: @escaping @Sendable (Int32) -> Void
+        onStatusChange: @escaping @Sendable (SessionStatus) -> Void
     ) {
         self.sessionID = sessionID
         self.projectPath = projectPath
         self.modelName = modelName
+        self._claudeSessionID = claudeSessionID
         self.onEvent = onEvent
         self.onLog = onLog
         self.onUsage = onUsage
-        self.onExit = onExit
+        self.onStatusChange = onStatusChange
     }
 
-    /// Launch Claude Code process with streaming JSON I/O
-    func start() throws {
-        let process = Process()
-        let stdinPipe = Pipe()
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-
-        // Find claude binary
-        let claudePath = Self.findClaudePath()
-        guard let path = claudePath else {
-            throw FoundryError.claudeNotFound
-        }
-
-        process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = [
-            "--print",
-            "--output-format", "stream-json",
-            "--input-format", "stream-json",
-            "--model", modelName,
-            "--verbose",
-            "--add-dir", projectPath
-        ]
-        process.currentDirectoryURL = URL(fileURLWithPath: projectPath)
-        process.standardInput = stdinPipe
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        // Set environment to inherit user's shell PATH
-        var env = ProcessInfo.processInfo.environment
-        env["TERM"] = "dumb"
-        env["NO_COLOR"] = "1"
-        process.environment = env
-
-        // Handle stdout - stream JSON events
-        stdoutPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            guard !data.isEmpty else {
-                // EOF
-                handle.readabilityHandler = nil
-                return
-            }
-            guard let output = String(data: data, encoding: .utf8) else { return }
-            self?.handleStdout(output)
-        }
-
-        // Handle stderr - log output
-        stderrPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            guard !data.isEmpty else {
-                handle.readabilityHandler = nil
-                return
-            }
-            guard let output = String(data: data, encoding: .utf8) else { return }
-            self?.handleStderr(output)
-        }
-
-        // Handle process termination
-        process.terminationHandler = { [weak self] proc in
-            self?.processLock.lock()
-            self?._isRunning = false
-            self?.processLock.unlock()
-            self?.onExit(proc.terminationStatus)
-        }
-
-        try process.run()
-
-        processLock.lock()
-        _process = process
-        _stdinPipe = stdinPipe
-        _isRunning = true
-        processLock.unlock()
-
-        onLog(LogEntry(source: .system, content: "Claude Code process started (PID: \(process.processIdentifier))"))
-    }
-
-    /// Send a user message to the Claude process
+    /// Send a message to Claude - spawns a process for each message
     func sendMessage(_ message: String) {
-        processLock.lock()
-        guard let pipe = _stdinPipe, _isRunning else {
-            processLock.unlock()
+        guard let claudePath = Self.findClaudePath() else {
+            onEvent(SessionEvent(type: .error, content: "Claude Code CLI not found"))
             return
         }
-        processLock.unlock()
 
-        // Format as stream-json input
-        let jsonMessage: [String: Any] = [
-            "type": "user_message",
-            "content": message
-        ]
+        // Signal running
+        lock.lock()
+        _isRunning = true
+        lock.unlock()
+        onStatusChange(.running)
 
-        guard let data = try? JSONSerialization.data(withJSONObject: jsonMessage),
-              var jsonString = String(data: data, encoding: .utf8) else {
-            return
-        }
-        jsonString += "\n"
-
-        if let writeData = jsonString.data(using: .utf8) {
-            pipe.fileHandleForWriting.write(writeData)
-        }
-
+        // Add user input event
         onEvent(SessionEvent(type: .userInput, content: message))
+
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            let process = Process()
+            let stdoutPipe = Pipe()
+            let stderrPipe = Pipe()
+
+            process.executableURL = URL(fileURLWithPath: claudePath)
+
+            var args = [
+                "-p", message,
+                "--output-format", "stream-json",
+                "--verbose",
+                "--model", modelName
+            ]
+
+            // Resume existing session if we have a claude session ID
+            lock.lock()
+            let existingSessionID = _claudeSessionID
+            lock.unlock()
+
+            if let sid = existingSessionID {
+                args.append(contentsOf: ["--resume", sid])
+            }
+
+            process.arguments = args
+            process.currentDirectoryURL = URL(fileURLWithPath: projectPath)
+            process.standardOutput = stdoutPipe
+            process.standardError = stderrPipe
+
+            // Inherit PATH
+            var env = ProcessInfo.processInfo.environment
+            env["TERM"] = "dumb"
+            env["NO_COLOR"] = "1"
+            process.environment = env
+
+            lock.lock()
+            _process = process
+            lock.unlock()
+
+            do {
+                try process.run()
+                onLog(LogEntry(source: .system, content: "Claude process started (PID: \(process.processIdentifier))"))
+            } catch {
+                onEvent(SessionEvent(type: .error, content: "Failed to start: \(error.localizedDescription)"))
+                lock.lock()
+                _isRunning = false
+                lock.unlock()
+                onStatusChange(.error)
+                return
+            }
+
+            // Read stdout in background
+            var stdoutBuffer = ""
+            let stdoutHandle = stdoutPipe.fileHandleForReading
+
+            // Read all stdout
+            let stdoutData = stdoutHandle.readDataToEndOfFile()
+            if let output = String(data: stdoutData, encoding: .utf8) {
+                stdoutBuffer = output
+                onLog(LogEntry(source: .stdout, content: output))
+            }
+
+            // Read stderr
+            let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+            if let errOutput = String(data: stderrData, encoding: .utf8),
+               !errOutput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                onLog(LogEntry(source: .stderr, content: errOutput))
+            }
+
+            process.waitUntilExit()
+
+            // Parse stdout JSON lines
+            let lines = stdoutBuffer.components(separatedBy: .newlines)
+            for line in lines {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                guard let data = trimmed.data(using: .utf8) else { continue }
+                guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    continue
+                }
+
+                self.handleStreamEvent(json)
+            }
+
+            // Update state
+            lock.lock()
+            _isRunning = false
+            _process = nil
+            lock.unlock()
+
+            let exitStatus = process.terminationStatus
+            if exitStatus == 0 {
+                onStatusChange(.idle)
+            } else {
+                onEvent(SessionEvent(type: .error, content: "Process exited with status \(exitStatus)"))
+                onStatusChange(.error)
+            }
+        }
     }
 
-    /// Send a slash command to the Claude process
+    /// Send a slash command
     func sendCommand(_ command: String) {
         sendMessage(command)
     }
 
-    /// Stop the Claude process
+    /// Stop the current process
     func stop() {
-        processLock.lock()
-        guard let process = _process, _isRunning else {
-            processLock.unlock()
-            return
-        }
-        processLock.unlock()
-
-        // Close stdin to signal end of input
-        _stdinPipe?.fileHandleForWriting.closeFile()
-
-        // Give it a moment, then terminate if still running
-        DispatchQueue.global().asyncAfter(deadline: .now() + 2) { [weak self] in
-            self?.processLock.lock()
-            let stillRunning = self?._isRunning ?? false
-            self?.processLock.unlock()
-
-            if stillRunning {
-                process.terminate()
-            }
-        }
-    }
-
-    /// Force kill the process
-    func kill() {
-        processLock.lock()
+        lock.lock()
         let process = _process
         _isRunning = false
-        processLock.unlock()
+        lock.unlock()
 
         process?.terminate()
+        onStatusChange(.stopped)
     }
 
-    // MARK: - Private
+    // MARK: - Stream event handling
 
-    private nonisolated(unsafe) var stdoutBuffer = ""
+    private func handleStreamEvent(_ json: [String: Any]) {
+        let type = json["type"] as? String ?? ""
 
-    private func handleStdout(_ output: String) {
-        stdoutBuffer += output
-        onLog(LogEntry(source: .stdout, content: output))
-
-        // Process complete JSON lines
-        while let newlineIndex = stdoutBuffer.firstIndex(of: "\n") {
-            let line = String(stdoutBuffer[stdoutBuffer.startIndex..<newlineIndex])
-            stdoutBuffer = String(stdoutBuffer[stdoutBuffer.index(after: newlineIndex)...])
-
-            if let event = EventParser.parse(line: line) {
-                onEvent(event)
+        switch type {
+        case "system":
+            // Extract session_id for future --resume
+            if let sid = json["session_id"] as? String {
+                lock.lock()
+                _claudeSessionID = sid
+                lock.unlock()
             }
-            if let usage = EventParser.parseUsage(from: line) {
-                onUsage(usage)
+            let model = json["model"] as? String ?? ""
+            onEvent(SessionEvent(
+                type: .sessionStart,
+                content: "Model: \(model)"
+            ))
+
+        case "assistant":
+            guard let message = json["message"] as? [String: Any],
+                  let contentBlocks = message["content"] as? [[String: Any]] else {
+                return
             }
+
+            for block in contentBlocks {
+                let blockType = block["type"] as? String ?? ""
+                switch blockType {
+                case "text":
+                    let text = block["text"] as? String ?? ""
+                    if !text.isEmpty {
+                        onEvent(SessionEvent(type: .assistantMessage, content: text))
+                    }
+                case "thinking":
+                    let thinking = block["thinking"] as? String ?? ""
+                    if !thinking.isEmpty {
+                        onEvent(SessionEvent(type: .thinking, content: thinking))
+                    }
+                case "tool_use":
+                    let toolName = block["name"] as? String ?? "unknown"
+                    let input = block["input"] as? [String: Any] ?? [:]
+                    let content = formatToolInput(toolName: toolName, input: input)
+                    var metadata = EventMetadata(toolName: toolName)
+
+                    let eventType: EventType
+                    switch toolName {
+                    case "Bash":
+                        eventType = .bashCommand
+                        metadata.command = input["command"] as? String
+                    case "Read":
+                        eventType = .fileRead
+                        metadata.filePath = input["file_path"] as? String
+                    case "Write":
+                        eventType = .fileWrite
+                        metadata.filePath = input["file_path"] as? String
+                    case "Edit":
+                        eventType = .fileEdit
+                        metadata.filePath = input["file_path"] as? String
+                    case "Grep", "Glob":
+                        eventType = .search
+                        metadata.searchPattern = input["pattern"] as? String
+                    case "Agent":
+                        eventType = .subAgentSpawn
+                        metadata.agentName = input["subagent_type"] as? String
+                    default:
+                        eventType = .toolUse
+                    }
+
+                    onEvent(SessionEvent(type: eventType, content: content, metadata: metadata))
+                default:
+                    break
+                }
+            }
+
+            // Extract usage from assistant message
+            if let usage = message["usage"] as? [String: Any] {
+                var tokenUsage = TokenUsage()
+                tokenUsage.inputTokens = usage["input_tokens"] as? Int ?? 0
+                tokenUsage.outputTokens = usage["output_tokens"] as? Int ?? 0
+                tokenUsage.cacheReadTokens = usage["cache_read_input_tokens"] as? Int ?? 0
+                tokenUsage.cacheWriteTokens = usage["cache_creation_input_tokens"] as? Int ?? 0
+                onUsage(tokenUsage)
+            }
+
+        case "result":
+            let isError = json["is_error"] as? Bool ?? false
+            if isError {
+                let errorMsg = json["error"] as? String ?? json["result"] as? String ?? "Unknown error"
+                onEvent(SessionEvent(type: .error, content: errorMsg))
+            }
+
+            // Extract session ID
+            if let sid = json["session_id"] as? String {
+                lock.lock()
+                _claudeSessionID = sid
+                lock.unlock()
+            }
+
+            // Extract cost/usage
+            if let costUSD = json["total_cost_usd"] as? Double {
+                var tokenUsage = TokenUsage()
+                tokenUsage.estimatedCostUSD = costUSD
+                if let usage = json["usage"] as? [String: Any] {
+                    tokenUsage.inputTokens = usage["input_tokens"] as? Int ?? 0
+                    tokenUsage.outputTokens = usage["output_tokens"] as? Int ?? 0
+                    tokenUsage.cacheReadTokens = usage["cache_read_input_tokens"] as? Int ?? 0
+                    tokenUsage.cacheWriteTokens = usage["cache_creation_input_tokens"] as? Int ?? 0
+                }
+                onUsage(tokenUsage)
+            }
+
+        default:
+            break
         }
     }
 
-    private func handleStderr(_ output: String) {
-        onLog(LogEntry(source: .stderr, content: output))
-
-        // Check for error patterns
-        let lines = output.components(separatedBy: .newlines)
-        for line in lines where !line.trimmingCharacters(in: .whitespaces).isEmpty {
-            if line.lowercased().contains("error") || line.lowercased().contains("fatal") {
-                onEvent(SessionEvent(type: .error, content: line))
+    private func formatToolInput(toolName: String, input: [String: Any]) -> String {
+        switch toolName {
+        case "Bash":
+            return input["command"] as? String ?? ""
+        case "Read":
+            return input["file_path"] as? String ?? ""
+        case "Write":
+            let path = input["file_path"] as? String ?? ""
+            let contentLen = (input["content"] as? String)?.count ?? 0
+            return "\(path) (\(contentLen) chars)"
+        case "Edit":
+            let path = input["file_path"] as? String ?? ""
+            return path
+        case "Grep":
+            let pattern = input["pattern"] as? String ?? ""
+            return "grep: \(pattern)"
+        case "Glob":
+            return "glob: \(input["pattern"] as? String ?? "")"
+        case "Agent":
+            return input["description"] as? String ?? ""
+        default:
+            if let data = try? JSONSerialization.data(withJSONObject: input, options: []),
+               let str = String(data: data, encoding: .utf8) {
+                return String(str.prefix(300))
             }
+            return ""
         }
     }
 
-    // MARK: - Static
+    // MARK: - Static helpers
 
     static func findClaudePath() -> String? {
-        // Check common locations
         let paths = [
             "/opt/homebrew/bin/claude",
             "/usr/local/bin/claude",
@@ -238,16 +347,16 @@ final class ClaudeProcessController: Sendable {
         }
 
         // Try which
-        let whichProcess = Process()
+        let process = Process()
         let pipe = Pipe()
-        whichProcess.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        whichProcess.arguments = ["claude"]
-        whichProcess.standardOutput = pipe
-        whichProcess.standardError = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+        process.arguments = ["claude"]
+        process.standardOutput = pipe
+        process.standardError = Pipe()
 
         do {
-            try whichProcess.run()
-            whichProcess.waitUntilExit()
+            try process.run()
+            process.waitUntilExit()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                !path.isEmpty {
@@ -263,7 +372,6 @@ final class ClaudeProcessController: Sendable {
             return (false, nil, nil)
         }
 
-        // Get version
         let process = Process()
         let pipe = Pipe()
         process.executableURL = URL(fileURLWithPath: path)

@@ -9,23 +9,17 @@ class SessionManager: ObservableObject {
     @Published var claudeAvailable: Bool = false
     @Published var claudePath: String?
     @Published var claudeVersion: String?
+    @Published var isLoadingHistory: Bool = false
 
     private var controllers: [UUID: ClaudeProcessController] = [:]
-    private let persistence = PersistenceManager()
 
     var activeSession: Session? {
         guard let id = activeSessionID else { return nil }
         return sessions.first(where: { $0.id == id })
     }
 
-    var activeSessionIndex: Int? {
-        guard let id = activeSessionID else { return nil }
-        return sessions.firstIndex(where: { $0.id == id })
-    }
-
     init() {
         checkClaudeAvailability()
-        loadPersistedSessions()
     }
 
     // MARK: - Claude Availability
@@ -35,6 +29,57 @@ class SessionManager: ObservableObject {
         claudeAvailable = result.available
         claudePath = result.path
         claudeVersion = result.version
+
+        if claudeAvailable {
+            loadClaudeHistory()
+        }
+    }
+
+    // MARK: - Load real Claude Code session history
+
+    func loadClaudeHistory() {
+        isLoadingHistory = true
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let claudeSessions = ClaudeHistoryLoader.loadAllClaudeSessions()
+
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                // Merge with existing sessions (don't duplicate)
+                let existingClaudeIDs = Set(self.sessions.compactMap(\.claudeSessionID))
+
+                for session in claudeSessions {
+                    if let cid = session.claudeSessionID, !existingClaudeIDs.contains(cid) {
+                        self.sessions.append(session)
+                    }
+                }
+
+                // Sort by most recent
+                self.sessions.sort { $0.updatedAt > $1.updatedAt }
+                self.isLoadingHistory = false
+            }
+        }
+    }
+
+    /// Load conversation events for a session from Claude Code history
+    func loadSessionEvents(for sessionID: UUID) {
+        guard let index = sessions.firstIndex(where: { $0.id == sessionID }),
+              let claudeSessionID = sessions[index].claudeSessionID else {
+            return
+        }
+
+        // Only load if events are empty
+        guard sessions[index].events.isEmpty else { return }
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let events = ClaudeHistoryLoader.loadSessionEvents(claudeSessionId: claudeSessionID)
+
+            DispatchQueue.main.async {
+                guard let self = self,
+                      let idx = self.sessions.firstIndex(where: { $0.id == sessionID }) else { return }
+                self.sessions[idx].events = events
+            }
+        }
     }
 
     // MARK: - Session Lifecycle
@@ -46,7 +91,7 @@ class SessionManager: ObservableObject {
             projectPath: projectPath,
             modelName: model
         )
-        sessions.append(session)
+        sessions.insert(session, at: 0)
         activeSessionID = session.id
         return session.id
     }
@@ -55,10 +100,13 @@ class SessionManager: ObservableObject {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
 
         let session = sessions[index]
+        sessions[index].status = .idle
+
         let controller = ClaudeProcessController(
             sessionID: sessionID,
             projectPath: session.projectPath,
             modelName: session.modelName,
+            claudeSessionID: session.claudeSessionID,
             onEvent: { [weak self] event in
                 Task { @MainActor in
                     self?.handleEvent(sessionID: sessionID, event: event)
@@ -74,41 +122,28 @@ class SessionManager: ObservableObject {
                     self?.handleUsage(sessionID: sessionID, usage: usage)
                 }
             },
-            onExit: { [weak self] status in
+            onStatusChange: { [weak self] status in
                 Task { @MainActor in
-                    self?.handleProcessExit(sessionID: sessionID, status: status)
+                    self?.handleStatusChange(sessionID: sessionID, status: status)
                 }
             }
         )
 
         controllers[sessionID] = controller
-
-        do {
-            try controller.start()
-            sessions[index].status = .running
-            sessions[index].processID = controller.processIdentifier
-            sessions[index].events.append(
-                SessionEvent(type: .sessionStart, content: "Session started for \(session.projectPath)")
-            )
-        } catch {
-            sessions[index].status = .error
-            sessions[index].events.append(
-                SessionEvent(type: .error, content: error.localizedDescription)
-            )
-        }
     }
 
     func sendMessage(to sessionID: UUID, message: String) {
-        guard let controller = controllers[sessionID] else { return }
-        guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
+        // Ensure we have a controller
+        if controllers[sessionID] == nil {
+            startSession(sessionID)
+        }
 
-        sessions[index].status = .running
+        guard let controller = controllers[sessionID] else { return }
         controller.sendMessage(message)
     }
 
     func sendCommand(to sessionID: UUID, command: ClaudeCommand) {
-        guard let controller = controllers[sessionID] else { return }
-        controller.sendCommand(command.name)
+        sendMessage(to: sessionID, message: command.name)
     }
 
     func stopSession(_ sessionID: UUID) {
@@ -119,32 +154,24 @@ class SessionManager: ObservableObject {
     }
 
     func deleteSession(_ sessionID: UUID) {
-        controllers[sessionID]?.kill()
+        controllers[sessionID]?.stop()
         controllers.removeValue(forKey: sessionID)
         sessions.removeAll(where: { $0.id == sessionID })
         if activeSessionID == sessionID {
             activeSessionID = sessions.first?.id
         }
-        persistence.deleteSession(sessionID)
     }
 
     func switchToSession(_ sessionID: UUID) {
         activeSessionID = sessionID
+        // Load events if not already loaded
+        loadSessionEvents(for: sessionID)
     }
 
     // MARK: - Event Handling
 
     private func handleEvent(sessionID: UUID, event: SessionEvent) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
-
-        // For streaming text, merge with last event if same type
-        if event.type == .assistantMessage || event.type == .thinking {
-            if let lastIndex = sessions[index].events.lastIndex(where: { $0.type == event.type }) {
-                sessions[index].events[lastIndex].content += event.content
-                sessions[index].updatedAt = Date()
-                return
-            }
-        }
 
         sessions[index].events.append(event)
         sessions[index].updatedAt = Date()
@@ -159,13 +186,20 @@ class SessionManager: ObservableObject {
                 sessions[index].fileChanges.append(change)
             }
         }
+
+        // Capture Claude session ID
+        if event.type == .sessionStart {
+            if let controller = controllers[sessionID],
+               let csid = controller.claudeSessionID {
+                sessions[index].claudeSessionID = csid
+            }
+        }
     }
 
     private func handleLog(sessionID: UUID, log: LogEntry) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
         sessions[index].rawLogs.append(log)
 
-        // Limit log buffer to prevent memory issues
         if sessions[index].rawLogs.count > 10000 {
             sessions[index].rawLogs.removeFirst(1000)
         }
@@ -173,50 +207,26 @@ class SessionManager: ObservableObject {
 
     private func handleUsage(sessionID: UUID, usage: TokenUsage) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
-        sessions[index].tokenUsage.inputTokens += usage.inputTokens
-        sessions[index].tokenUsage.outputTokens += usage.outputTokens
-        sessions[index].tokenUsage.cacheReadTokens += usage.cacheReadTokens
-        sessions[index].tokenUsage.cacheWriteTokens += usage.cacheWriteTokens
+
         if usage.estimatedCostUSD > 0 {
             sessions[index].tokenUsage.estimatedCostUSD = usage.estimatedCostUSD
         }
+        if usage.inputTokens > 0 {
+            sessions[index].tokenUsage.inputTokens = usage.inputTokens
+        }
+        if usage.outputTokens > 0 {
+            sessions[index].tokenUsage.outputTokens = usage.outputTokens
+        }
+        if usage.cacheReadTokens > 0 {
+            sessions[index].tokenUsage.cacheReadTokens = usage.cacheReadTokens
+        }
+        if usage.cacheWriteTokens > 0 {
+            sessions[index].tokenUsage.cacheWriteTokens = usage.cacheWriteTokens
+        }
     }
 
-    private func handleProcessExit(sessionID: UUID, status: Int32) {
+    private func handleStatusChange(sessionID: UUID, status: SessionStatus) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
-
-        if status == 0 {
-            sessions[index].status = .idle
-        } else {
-            sessions[index].status = .error
-            sessions[index].events.append(
-                SessionEvent(type: .error, content: "Process exited with status \(status)")
-            )
-        }
-
-        controllers.removeValue(forKey: sessionID)
-        saveSession(sessions[index])
-    }
-
-    // MARK: - Persistence
-
-    func saveSession(_ session: Session) {
-        persistence.saveSession(session)
-    }
-
-    func saveAllSessions() {
-        for session in sessions {
-            persistence.saveSession(session)
-        }
-    }
-
-    private func loadPersistedSessions() {
-        sessions = persistence.loadAllSessions()
-        // Mark all loaded sessions as stopped since processes don't survive app restart
-        for i in sessions.indices {
-            if sessions[i].status == .running || sessions[i].status == .initializing {
-                sessions[i].status = .stopped
-            }
-        }
+        sessions[index].status = status
     }
 }

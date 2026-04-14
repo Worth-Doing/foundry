@@ -1,13 +1,19 @@
 import SwiftUI
 
+enum NavigationPage: String, CaseIterable {
+    case sessions = "Sessions"
+    case skills = "Skills"
+    case agents = "Agents"
+    case mcp = "MCP Servers"
+    case usage = "Usage & Costs"
+}
+
 struct MainView: View {
     @EnvironmentObject var sessionManager: SessionManager
     @Binding var showCommandPalette: Bool
     @State private var showTerminalPanel = true
     @State private var showFilePanel = false
-    @State private var sidebarWidth: CGFloat = 240
-    @State private var terminalHeight: CGFloat = 180
-    @State private var filePanelWidth: CGFloat = 320
+    @State private var currentPage: NavigationPage = .sessions
 
     var body: some View {
         Group {
@@ -26,19 +32,52 @@ struct MainView: View {
     @ViewBuilder
     private var mainLayout: some View {
         NavigationSplitView {
-            SidebarView()
-                .frame(minWidth: 200)
+            VStack(spacing: 0) {
+                // Navigation pages
+                List(selection: $currentPage) {
+                    Section("Navigation") {
+                        ForEach(NavigationPage.allCases, id: \.self) { page in
+                            Label(page.rawValue, systemImage: iconForPage(page))
+                                .tag(page)
+                        }
+                    }
+                }
+                .listStyle(.sidebar)
+                .frame(height: 180)
+
+                Divider()
+
+                // Sessions list (always visible)
+                SidebarView()
+            }
+            .frame(minWidth: 220)
         } detail: {
-            if let session = sessionManager.activeSession {
-                sessionDetailView(session)
-            } else {
-                WelcomeView()
+            switch currentPage {
+            case .sessions:
+                sessionContent
+            case .skills:
+                SkillsView()
+            case .agents:
+                AgentsView()
+            case .mcp:
+                MCPView()
+            case .usage:
+                UsageView()
             }
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 toolbarButtons
             }
+        }
+    }
+
+    @ViewBuilder
+    private var sessionContent: some View {
+        if let session = sessionManager.activeSession {
+            sessionDetailView(session)
+        } else {
+            WelcomeView()
         }
     }
 
@@ -65,7 +104,7 @@ struct MainView: View {
                         Divider()
                         FileChangesPanel(session: session)
                     }
-                    .frame(width: filePanelWidth)
+                    .frame(width: 320)
                 }
             }
 
@@ -76,7 +115,7 @@ struct MainView: View {
                     terminalPanelHeader
                     TerminalView(session: session)
                 }
-                .frame(height: terminalHeight)
+                .frame(height: 180)
             }
 
             // Status bar
@@ -93,25 +132,27 @@ struct MainView: View {
         }
         .help("Command Palette (⌘K)")
 
-        Toggle(isOn: $showFilePanel) {
-            Image(systemName: "doc.on.doc")
-        }
-        .help("Toggle File Changes Panel")
-
-        Toggle(isOn: $showTerminalPanel) {
-            Image(systemName: "terminal")
-        }
-        .help("Toggle Terminal Panel")
-
-        if let id = sessionManager.activeSessionID,
-           sessionManager.activeSession?.status == .running {
-            Button {
-                sessionManager.stopSession(id)
-            } label: {
-                Image(systemName: "stop.fill")
-                    .foregroundStyle(.red)
+        if currentPage == .sessions {
+            Toggle(isOn: $showFilePanel) {
+                Image(systemName: "doc.on.doc")
             }
-            .help("Stop Session")
+            .help("Toggle File Changes Panel")
+
+            Toggle(isOn: $showTerminalPanel) {
+                Image(systemName: "terminal")
+            }
+            .help("Toggle Terminal Panel")
+
+            if let id = sessionManager.activeSessionID,
+               sessionManager.activeSession?.status == .running {
+                Button {
+                    sessionManager.stopSession(id)
+                } label: {
+                    Image(systemName: "stop.fill")
+                        .foregroundStyle(.red)
+                }
+                .help("Stop Session")
+            }
         }
     }
 
@@ -152,6 +193,16 @@ struct MainView: View {
         .padding(.vertical, 6)
         .background(.bar)
     }
+
+    private func iconForPage(_ page: NavigationPage) -> String {
+        switch page {
+        case .sessions: return "bubble.left.and.bubble.right"
+        case .skills: return "sparkles"
+        case .agents: return "person.2.fill"
+        case .mcp: return "server.rack"
+        case .usage: return "chart.bar.fill"
+        }
+    }
 }
 
 // MARK: - Welcome View
@@ -173,7 +224,7 @@ struct WelcomeView: View {
                 .foregroundStyle(.secondary)
 
             VStack(spacing: 12) {
-                Text("Create a new session to get started")
+                Text("Select a session from the sidebar or create a new one")
                     .foregroundStyle(.tertiary)
 
                 Button {

@@ -4,85 +4,50 @@ struct PromptView: View {
     let sessionID: UUID
     @EnvironmentObject var sessionManager: SessionManager
     @State private var promptText = ""
-    @State private var contextText = ""
-    @State private var showContext = false
     @FocusState private var isFocused: Bool
 
-    private var isSessionActive: Bool {
-        sessionManager.sessions.first(where: { $0.id == sessionID })?.status == .running ||
-        sessionManager.sessions.first(where: { $0.id == sessionID })?.status == .idle
+    private var session: Session? {
+        sessionManager.sessions.first(where: { $0.id == sessionID })
+    }
+
+    private var isProcessing: Bool {
+        session?.status == .running
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Context field (optional, collapsible)
-            if showContext {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Context")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Button {
-                            showContext = false
-                            contextText = ""
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.caption2)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    TextEditor(text: $contextText)
-                        .font(.system(.callout))
-                        .frame(height: 40)
-                        .scrollContentBackground(.hidden)
-                        .padding(4)
-                        .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 4))
+        HStack(alignment: .bottom, spacing: 8) {
+            // Text input
+            ZStack(alignment: .topLeading) {
+                if promptText.isEmpty {
+                    Text(isProcessing ? "Claude is working..." : "Message Claude...")
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 8)
                 }
-                .padding(.horizontal, 12)
-                .padding(.top, 8)
 
-                Divider()
-                    .padding(.horizontal, 12)
+                TextEditor(text: $promptText)
+                    .font(.system(.body))
+                    .scrollContentBackground(.hidden)
+                    .focused($isFocused)
+                    .frame(minHeight: 32, maxHeight: 80)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .disabled(isProcessing)
             }
+            .padding(4)
+            .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
 
-            // Main input area
-            HStack(alignment: .bottom, spacing: 8) {
-                // Add context button
+            // Send / Stop button
+            if isProcessing {
                 Button {
-                    showContext.toggle()
+                    sessionManager.stopSession(sessionID)
                 } label: {
-                    Image(systemName: "plus.circle")
-                        .font(.title3)
-                        .foregroundStyle(showContext ? Color.accentColor : Color.secondary)
+                    Image(systemName: "stop.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.red)
                 }
                 .buttonStyle(.plain)
-                .help("Add context")
-
-                // Text input
-                ZStack(alignment: .topLeading) {
-                    if promptText.isEmpty {
-                        Text("Message Claude...")
-                            .foregroundStyle(.tertiary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 8)
-                    }
-
-                    TextEditor(text: $promptText)
-                        .font(.system(.body))
-                        .scrollContentBackground(.hidden)
-                        .focused($isFocused)
-                        .frame(minHeight: 32, maxHeight: 100)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .onSubmit {
-                            sendMessage()
-                        }
-                }
-                .padding(4)
-                .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-
-                // Send button
+                .help("Stop (⌘.)")
+            } else {
                 Button {
                     sendMessage()
                 } label: {
@@ -95,8 +60,8 @@ struct PromptView: View {
                 .keyboardShortcut(.return, modifiers: .command)
                 .help("Send (⌘Return)")
             }
-            .padding(12)
         }
+        .padding(12)
         .background(.bar)
         .onAppear {
             isFocused = true
@@ -104,21 +69,14 @@ struct PromptView: View {
     }
 
     private var canSend: Bool {
-        !promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && isSessionActive
+        !promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isProcessing
     }
 
     private func sendMessage() {
         let message = promptText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !message.isEmpty else { return }
 
-        var fullMessage = message
-        if showContext && !contextText.isEmpty {
-            fullMessage = "Context: \(contextText)\n\n\(message)"
-        }
-
-        sessionManager.sendMessage(to: sessionID, message: fullMessage)
+        sessionManager.sendMessage(to: sessionID, message: message)
         promptText = ""
-        contextText = ""
-        showContext = false
     }
 }

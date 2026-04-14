@@ -2,7 +2,6 @@ import SwiftUI
 
 struct SidebarView: View {
     @EnvironmentObject var sessionManager: SessionManager
-    @State private var showNewSession = false
     @State private var searchText = ""
 
     var filteredSessions: [Session] {
@@ -15,9 +14,16 @@ struct SidebarView: View {
         }
     }
 
+    var activeSessions: [Session] {
+        filteredSessions.filter { $0.status == .running || $0.status == .idle || $0.status == .initializing }
+    }
+
+    var historySessions: [Session] {
+        filteredSessions.filter { $0.status == .stopped || $0.status == .error }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Session list
             List(selection: Binding(
                 get: { sessionManager.activeSessionID },
                 set: { id in
@@ -26,25 +32,31 @@ struct SidebarView: View {
                     }
                 }
             )) {
-                Section("Active Sessions") {
-                    ForEach(filteredSessions.filter { $0.status == .running || $0.status == .idle }) { session in
-                        SessionRow(session: session)
-                            .tag(session.id)
-                            .contextMenu {
-                                sessionContextMenu(session)
-                            }
+                if !activeSessions.isEmpty {
+                    Section("Active") {
+                        ForEach(activeSessions) { session in
+                            SessionRow(session: session)
+                                .tag(session.id)
+                                .contextMenu { sessionContextMenu(session) }
+                        }
                     }
                 }
 
-                if filteredSessions.contains(where: { $0.status == .stopped || $0.status == .error }) {
-                    Section("Previous Sessions") {
-                        ForEach(filteredSessions.filter { $0.status == .stopped || $0.status == .error }) { session in
-                            SessionRow(session: session)
-                                .tag(session.id)
-                                .contextMenu {
-                                    sessionContextMenu(session)
-                                }
+                Section("History (\(historySessions.count))") {
+                    if sessionManager.isLoadingHistory {
+                        HStack {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Loading sessions...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
+                    }
+
+                    ForEach(historySessions) { session in
+                        SessionRow(session: session)
+                            .tag(session.id)
+                            .contextMenu { sessionContextMenu(session) }
                     }
                 }
             }
@@ -53,7 +65,7 @@ struct SidebarView: View {
 
             Divider()
 
-            // Bottom actions
+            // Bottom bar
             HStack(spacing: 12) {
                 Button {
                     openNewSession()
@@ -61,7 +73,15 @@ struct SidebarView: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.plain)
-                .help("New Session")
+                .help("New Session (⌘N)")
+
+                Button {
+                    sessionManager.loadClaudeHistory()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.plain)
+                .help("Reload Claude Code sessions")
 
                 Spacer()
 
@@ -91,14 +111,14 @@ struct SidebarView: View {
 
     @ViewBuilder
     private func sessionContextMenu(_ session: Session) -> some View {
-        if session.status == .running {
+        if session.status == .running || session.status == .idle {
             Button("Stop Session") {
                 sessionManager.stopSession(session.id)
             }
         }
 
         if session.status == .stopped || session.status == .error {
-            Button("Restart Session") {
+            Button("Resume Session") {
                 sessionManager.startSession(session.id)
             }
         }
@@ -111,7 +131,7 @@ struct SidebarView: View {
 
         Divider()
 
-        Button("Delete Session", role: .destructive) {
+        Button("Remove from List", role: .destructive) {
             sessionManager.deleteSession(session.id)
         }
     }
@@ -124,7 +144,6 @@ struct SessionRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            // Status indicator
             Circle()
                 .fill(statusColor)
                 .frame(width: 8, height: 8)
@@ -134,19 +153,27 @@ struct SessionRow: View {
                     .font(.system(.body, weight: .medium))
                     .lineLimit(1)
 
-                Text(abbreviatedPath)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.head)
+                HStack(spacing: 4) {
+                    Text(abbreviatedPath)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                }
             }
 
             Spacer()
 
-            if session.status == .running {
-                ProgressView()
-                    .scaleEffect(0.5)
-                    .frame(width: 16, height: 16)
+            VStack(alignment: .trailing, spacing: 2) {
+                if session.status == .running {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 16, height: 16)
+                }
+
+                Text(session.createdAt, style: .relative)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
         }
         .padding(.vertical, 2)
@@ -164,9 +191,9 @@ struct SessionRow: View {
 
     private var abbreviatedPath: String {
         let path = session.projectPath
-        if let homeDir = ProcessInfo.processInfo.environment["HOME"],
-           path.hasPrefix(homeDir) {
-            return "~" + path.dropFirst(homeDir.count)
+        if let home = ProcessInfo.processInfo.environment["HOME"],
+           path.hasPrefix(home) {
+            return "~" + path.dropFirst(home.count)
         }
         return path
     }
