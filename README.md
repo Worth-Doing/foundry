@@ -40,12 +40,12 @@
 ## Download
 
 <p align="center">
-  <a href="Foundry-1.0.0.dmg">
+  <a href="https://github.com/Worth-Doing/foundry/releases/download/v1.0.0/Foundry-1.0.0.dmg">
     <img src="https://img.shields.io/badge/⬇%20Download-Foundry%201.0.0%20DMG-blue?style=for-the-badge&logo=apple&logoColor=white" alt="Download DMG">
   </a>
 </p>
 
-> **[📥 Foundry-1.0.0.dmg](Foundry-1.0.0.dmg)** — 2.5 MB | Apple Notarized | Code Signed | macOS 14+
+> **[📥 Foundry-1.0.0.dmg](https://github.com/Worth-Doing/foundry/releases/download/v1.0.0/Foundry-1.0.0.dmg)** — 2.5 MB | Apple Notarized | Code Signed | macOS 14+
 
 ---
 
