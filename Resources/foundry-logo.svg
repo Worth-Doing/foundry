@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="50%" style="stop-color:#16213e"/>
+      <stop offset="100%" style="stop-color:#0f3460"/>
+    </linearGradient>
+    <linearGradient id="anvil" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e0e0e0"/>
+      <stop offset="40%" style="stop-color:#b0b0b0"/>
+      <stop offset="100%" style="stop-color:#808080"/>
+    </linearGradient>
+    <linearGradient id="spark1" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ff6b35"/>
+      <stop offset="50%" style="stop-color:#ff9f1c"/>
+      <stop offset="100%" style="stop-color:#ffce54"/>
+    </linearGradient>
+    <linearGradient id="spark2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#e94560"/>
+      <stop offset="100%" style="stop-color:#ff6b35"/>
+    </linearGradient>
+    <linearGradient id="hammer" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#c0c0c0"/>
+      <stop offset="100%" style="stop-color:#909090"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="sparkGlow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="1024" height="1024" rx="220" ry="220" fill="url(#bg)"/>
+
+  <!-- Subtle grid pattern -->
+  <g opacity="0.04">
+    <line x1="256" y1="0" x2="256" y2="1024" stroke="white" stroke-width="1"/>
+    <line x1="512" y1="0" x2="512" y2="1024" stroke="white" stroke-width="1"/>
+    <line x1="768" y1="0" x2="768" y2="1024" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="256" x2="1024" y2="256" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="512" x2="1024" y2="512" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="768" x2="1024" y2="768" stroke="white" stroke-width="1"/>
+  </g>
+
+  <!-- Anvil body -->
+  <g transform="translate(512, 560)">
+    <!-- Anvil base -->
+    <path d="M-200,100 L-160,100 L-140,60 L140,60 L160,100 L200,100 L200,140 L-200,140 Z"
+          fill="url(#anvil)" stroke="#666" stroke-width="3"/>
+    <!-- Anvil top surface -->
+    <path d="M-180,60 L-140,60 L-160,-10 L-220,-10 L-240,20 L-200,60 Z"
+          fill="url(#anvil)" stroke="#666" stroke-width="3"/>
+    <path d="M-160,-10 L200,-10 L200,60 L-140,60 Z"
+          fill="url(#anvil)" stroke="#666" stroke-width="3"/>
+    <!-- Anvil horn -->
+    <path d="M200,-10 L280,-10 Q320,-10 320,10 L320,20 Q320,60 280,60 L200,60 Z"
+          fill="url(#anvil)" stroke="#666" stroke-width="3"/>
+    <!-- Highlight on top -->
+    <path d="M-150,-10 L190,-10 L190,5 L-150,5 Z" fill="white" opacity="0.15"/>
+  </g>
+
+  <!-- Hammer -->
+  <g transform="translate(380, 320) rotate(-30, 60, 100)">
+    <!-- Handle -->
+    <rect x="50" y="80" width="16" height="180" rx="4" fill="#8B6914" stroke="#6B4F12" stroke-width="2"/>
+    <!-- Head -->
+    <rect x="10" y="50" width="100" height="45" rx="8" fill="url(#hammer)" stroke="#666" stroke-width="3"/>
+    <!-- Head highlight -->
+    <rect x="15" y="55" width="90" height="10" rx="3" fill="white" opacity="0.2"/>
+  </g>
+
+  <!-- Sparks -->
+  <g filter="url(#sparkGlow)">
+    <!-- Main sparks -->
+    <circle cx="420" cy="460" r="6" fill="#ffce54" opacity="0.9"/>
+    <circle cx="380" cy="430" r="4" fill="#ff9f1c" opacity="0.8"/>
+    <circle cx="450" cy="440" r="5" fill="#ff6b35" opacity="0.85"/>
+    <circle cx="400" cy="410" r="3" fill="#ffce54" opacity="0.7"/>
+    <circle cx="460" cy="470" r="4" fill="#ff9f1c" opacity="0.75"/>
+    <circle cx="350" cy="450" r="3.5" fill="#ffce54" opacity="0.65"/>
+
+    <!-- Spark trails -->
+    <path d="M420,460 Q400,400 370,370" stroke="url(#spark1)" stroke-width="2.5" fill="none" opacity="0.6" stroke-linecap="round"/>
+    <path d="M450,440 Q470,390 490,360" stroke="url(#spark1)" stroke-width="2" fill="none" opacity="0.5" stroke-linecap="round"/>
+    <path d="M380,430 Q350,380 330,360" stroke="url(#spark2)" stroke-width="2" fill="none" opacity="0.5" stroke-linecap="round"/>
+    <path d="M400,410 Q380,360 400,320" stroke="url(#spark1)" stroke-width="1.5" fill="none" opacity="0.4" stroke-linecap="round"/>
+
+    <!-- Small flying sparks -->
+    <circle cx="370" cy="370" r="2.5" fill="#ffce54" opacity="0.7"/>
+    <circle cx="490" cy="360" r="2" fill="#ff9f1c" opacity="0.6"/>
+    <circle cx="330" cy="360" r="2" fill="#ff6b35" opacity="0.6"/>
+    <circle cx="400" cy="320" r="2" fill="#ffce54" opacity="0.5"/>
+    <circle cx="310" cy="390" r="1.5" fill="#ff9f1c" opacity="0.4"/>
+    <circle cx="500" cy="400" r="1.5" fill="#ffce54" opacity="0.4"/>
+  </g>
+
+  <!-- Code brackets - left -->
+  <g opacity="0.15">
+    <text x="140" y="520" font-family="SF Mono, Menlo, monospace" font-size="120" font-weight="bold" fill="white" transform="rotate(-10, 140, 520)">{</text>
+    <text x="780" y="520" font-family="SF Mono, Menlo, monospace" font-size="120" font-weight="bold" fill="white" transform="rotate(10, 780, 520)">}</text>
+  </g>
+
+  <!-- Terminal cursor blink indicator -->
+  <rect x="620" y="510" width="3" height="30" rx="1.5" fill="#4ade80" opacity="0.7"/>
+
+  <!-- "FOUNDRY" text -->
+  <text x="512" y="820" text-anchor="middle" font-family="SF Pro Display, Helvetica Neue, Arial, sans-serif"
+        font-size="88" font-weight="800" letter-spacing="12" fill="white" opacity="0.95">FOUNDRY</text>
+
+  <!-- Subtle tagline -->
+  <text x="512" y="868" text-anchor="middle" font-family="SF Pro Display, Helvetica Neue, Arial, sans-serif"
+        font-size="28" font-weight="400" letter-spacing="8" fill="white" opacity="0.35">FORGE YOUR CODE</text>
+</svg>
