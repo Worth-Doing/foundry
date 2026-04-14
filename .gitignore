@@ -1,3 +1,11 @@
 .build/
 Foundry.app/
 .swiftpm/
+*.dmg
+*.icns
+*.png
+AppIcon.iconset/
+Foundry.entitlements
+.DS_Store
+Sources/.DS_Store
+Sources/Foundry/.DS_Store
