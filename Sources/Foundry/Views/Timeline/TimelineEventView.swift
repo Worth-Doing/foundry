@@ -79,10 +79,7 @@ struct TimelineEventView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(event.content)
-                    .font(.system(.body))
-                    .textSelection(.enabled)
-                    .lineSpacing(3)
+                MarkdownView(text: event.content)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -114,11 +111,8 @@ struct TimelineEventView: View {
             }
 
             DisclosureGroup(isExpanded: $isExpanded) {
-                Text(event.content)
-                    .font(.system(.callout))
+                MarkdownView(text: event.content)
                     .foregroundStyle(.secondary)
-                    .italic()
-                    .textSelection(.enabled)
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } label: {
