@@ -3,229 +3,390 @@ import SwiftUI
 struct TimelineEventView: View {
     let event: SessionEvent
     @State private var isExpanded = true
+    @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Event header
-            HStack(spacing: 8) {
-                Image(systemName: eventIcon)
-                    .foregroundStyle(eventColor)
-                    .frame(width: 20)
-
-                Text(eventTitle)
-                    .font(.system(.subheadline, weight: .semibold))
-                    .foregroundStyle(eventColor)
-
-                if let toolName = event.metadata?.toolName {
-                    Text(toolName)
-                        .font(.system(.caption, design: .monospaced))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(eventColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
+        Group {
+            switch event.type {
+            case .userInput:
+                userBubble
+            case .assistantMessage:
+                assistantBubble
+            case .thinking:
+                thinkingBubble
+            case .toolUse, .bashCommand:
+                toolBubble
+            case .toolResult, .bashOutput:
+                resultBubble
+            case .error:
+                errorBubble
+            case .fileRead, .fileWrite, .fileEdit:
+                fileBubble
+            case .search:
+                searchBubble
+            case .subAgentSpawn:
+                agentBubble
+            case .systemInfo, .permissionRequest, .permissionResponse:
+                systemBubble
+            default:
+                if !event.content.isEmpty {
+                    systemBubble
                 }
-
-                Spacer()
-
-                Text(event.timestamp, style: .time)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-
-                Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        isExpanded.toggle()
-                    }
-                } label: {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
-
-            // Event content
-            if isExpanded && !event.content.isEmpty {
-                eventContent
-                    .padding(.horizontal, 16)
-                    .padding(.leading, 28)
-                    .padding(.bottom, 8)
             }
         }
-        .background(eventBackground)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 3)
+        .onHover { isHovered = $0 }
     }
 
-    @ViewBuilder
-    private var eventContent: some View {
-        switch event.type {
-        case .userInput:
-            Text(event.content)
-                .font(.system(.body))
-                .textSelection(.enabled)
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+    // MARK: - User message
 
-        case .assistantMessage:
-            Text(event.content)
-                .font(.system(.body))
-                .textSelection(.enabled)
-                .lineSpacing(3)
+    private var userBubble: some View {
+        HStack {
+            Spacer(minLength: 80)
 
-        case .thinking:
-            Text(event.content)
-                .font(.system(.callout))
-                .foregroundStyle(.secondary)
-                .italic()
-                .textSelection(.enabled)
-                .padding(8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(event.content)
+                    .font(.system(.body))
+                    .foregroundStyle(.white)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
 
-        case .toolUse, .bashCommand:
+                if isHovered {
+                    Text(event.timestamp, style: .time)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .transition(.opacity)
+                }
+            }
+        }
+    }
+
+    // MARK: - Assistant message
+
+    private var assistantBubble: some View {
+        HStack(alignment: .top, spacing: 10) {
+            // Avatar
+            ZStack {
+                Circle()
+                    .fill(Color.purple.opacity(0.15))
+                    .frame(width: 28, height: 28)
+                Text("C")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.purple)
+            }
+
             VStack(alignment: .leading, spacing: 4) {
-                if let cmd = event.metadata?.command ?? (event.metadata?.toolName == "Bash" ? event.content : nil),
-                   !cmd.isEmpty {
+                Text(event.content)
+                    .font(.system(.body))
+                    .textSelection(.enabled)
+                    .lineSpacing(3)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                if isHovered {
+                    Text(event.timestamp, style: .time)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .padding(.leading, 8)
+                        .transition(.opacity)
+                }
+            }
+
+            Spacer(minLength: 40)
+        }
+    }
+
+    // MARK: - Thinking
+
+    private var thinkingBubble: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(Color.secondary.opacity(0.1))
+                    .frame(width: 28, height: 28)
+                Image(systemName: "brain")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            DisclosureGroup(isExpanded: $isExpanded) {
+                Text(event.content)
+                    .font(.system(.callout))
+                    .foregroundStyle(.secondary)
+                    .italic()
+                    .textSelection(.enabled)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } label: {
+                Text("Thinking...")
+                    .font(.system(.callout, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+
+            Spacer(minLength: 80)
+        }
+    }
+
+    // MARK: - Tool use / Bash command
+
+    private var toolBubble: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.15))
+                    .frame(width: 28, height: 28)
+                Image(systemName: event.type == .bashCommand ? "terminal.fill" : "wrench.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.orange)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                // Header
+                HStack(spacing: 6) {
+                    Text(event.metadata?.toolName ?? "Tool")
+                        .font(.system(.caption, design: .monospaced, weight: .semibold))
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+
+                    if isHovered {
+                        Text(event.timestamp, style: .time)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+
+                // Content
+                if isExpanded, let cmd = event.metadata?.command, !cmd.isEmpty {
                     Text(cmd)
                         .font(.system(.callout, design: .monospaced))
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
                         .textSelection(.enabled)
-                } else if !event.content.isEmpty {
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                } else if isExpanded, !event.content.isEmpty {
                     Text(event.content)
                         .font(.system(.callout, design: .monospaced))
                         .textSelection(.enabled)
-                        .lineLimit(isExpanded ? nil : 3)
+                        .lineLimit(6)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
                 }
             }
-
-        case .toolResult, .bashOutput:
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(event.content)
-                    .font(.system(.caption, design: .monospaced))
-                    .textSelection(.enabled)
+            .padding(10)
+            .background(Color(.controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
             }
-            .frame(maxHeight: 200)
-            .padding(8)
-            .background(Color(.textBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
 
-        case .error:
-            HStack(spacing: 6) {
+            Spacer(minLength: 40)
+        }
+    }
+
+    // MARK: - Tool result
+
+    private var resultBubble: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Rectangle()
+                .fill(Color.green.opacity(0.3))
+                .frame(width: 2)
+                .padding(.leading, 14)
+
+            VStack(alignment: .leading, spacing: 0) {
+                if isExpanded {
+                    ScrollView {
+                        Text(event.content)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxHeight: 150)
+                    .padding(8)
+                    .background(Color(.textBackgroundColor).opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+                } else {
+                    Text(String(event.content.prefix(80)) + (event.content.count > 80 ? "..." : ""))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .padding(8)
+                }
+            }
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
+            }
+
+            Spacer(minLength: 40)
+        }
+    }
+
+    // MARK: - Error
+
+    private var errorBubble: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(Color.red.opacity(0.15))
+                    .frame(width: 28, height: 28)
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
-                Text(event.content)
-                    .font(.system(.callout))
+                    .font(.system(size: 12))
                     .foregroundStyle(.red)
             }
-            .padding(8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
 
-        case .fileRead, .fileWrite, .fileEdit:
-            HStack(spacing: 6) {
-                Image(systemName: event.type == .fileRead ? "doc.text" : "doc.badge.ellipsis")
+            Text(event.content)
+                .font(.system(.callout))
+                .foregroundStyle(.red)
+                .textSelection(.enabled)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+
+            Spacer(minLength: 40)
+        }
+    }
+
+    // MARK: - File operations
+
+    private var fileBubble: some View {
+        HStack(spacing: 10) {
+            Rectangle()
+                .fill(Color.mint.opacity(0.3))
+                .frame(width: 2)
+                .padding(.leading, 14)
+
+            HStack(spacing: 8) {
+                Image(systemName: fileIcon)
+                    .font(.caption)
+                    .foregroundStyle(.mint)
+
+                Text(fileLabel)
+                    .font(.system(.caption, weight: .medium))
+                    .foregroundStyle(.mint)
+
                 Text(event.metadata?.filePath ?? event.content)
-                    .font(.system(.callout, design: .monospaced))
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            .padding(6)
-            .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 4))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.mint.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
 
-        case .subAgentSpawn:
-            HStack(spacing: 6) {
-                Image(systemName: "person.2.fill")
-                Text("Sub-agent: \(event.metadata?.agentName ?? "unknown")")
-                    .font(.system(.callout, weight: .medium))
-            }
-            .padding(6)
-            .background(.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
-
-        default:
-            if !event.content.isEmpty {
-                Text(event.content)
-                    .font(.system(.callout))
-                    .textSelection(.enabled)
-            }
+            Spacer()
         }
     }
 
-    private var eventIcon: String {
+    // MARK: - Search
+
+    private var searchBubble: some View {
+        HStack(spacing: 10) {
+            Rectangle()
+                .fill(Color.indigo.opacity(0.3))
+                .frame(width: 2)
+                .padding(.leading, 14)
+
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.caption)
+                    .foregroundStyle(.indigo)
+
+                Text(event.metadata?.searchPattern ?? event.content)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.indigo.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+
+            Spacer()
+        }
+    }
+
+    // MARK: - Agent
+
+    private var agentBubble: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(Color.purple.opacity(0.15))
+                    .frame(width: 28, height: 28)
+                Image(systemName: "person.2.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.purple)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text("Agent")
+                        .font(.system(.caption, weight: .semibold))
+                        .foregroundStyle(.purple)
+
+                    if let name = event.metadata?.agentName {
+                        Text(name)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if !event.content.isEmpty {
+                    Text(event.content)
+                        .font(.system(.callout))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            .padding(10)
+            .background(.purple.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+
+            Spacer(minLength: 40)
+        }
+    }
+
+    // MARK: - System
+
+    private var systemBubble: some View {
+        HStack {
+            Spacer()
+
+            Text(event.content)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(.quaternary.opacity(0.3), in: Capsule())
+
+            Spacer()
+        }
+    }
+
+    // MARK: - Helpers
+
+    private var fileIcon: String {
         switch event.type {
-        case .userInput: return "person.fill"
-        case .assistantMessage: return "bubble.left.fill"
-        case .thinking: return "brain"
-        case .toolUse: return "wrench.fill"
-        case .toolResult: return "checkmark.circle"
-        case .bashCommand: return "terminal.fill"
-        case .bashOutput: return "text.alignleft"
         case .fileRead: return "doc.text"
         case .fileWrite: return "doc.badge.plus"
         case .fileEdit: return "pencil"
-        case .search: return "magnifyingglass"
-        case .error: return "exclamationmark.triangle.fill"
-        case .subAgentSpawn: return "person.2.fill"
-        case .subAgentResult: return "person.2"
-        case .permissionRequest: return "lock.fill"
-        case .permissionResponse: return "lock.open.fill"
-        case .costUpdate: return "dollarsign.circle"
-        case .sessionStart: return "play.fill"
-        case .sessionEnd: return "stop.fill"
-        case .systemInfo: return "info.circle"
+        default: return "doc"
         }
     }
 
-    private var eventTitle: String {
+    private var fileLabel: String {
         switch event.type {
-        case .userInput: return "You"
-        case .assistantMessage: return "Claude"
-        case .thinking: return "Thinking"
-        case .toolUse: return "Tool"
-        case .toolResult: return "Result"
-        case .bashCommand: return "Command"
-        case .bashOutput: return "Output"
-        case .fileRead: return "Read"
-        case .fileWrite: return "Write"
-        case .fileEdit: return "Edit"
-        case .search: return "Search"
-        case .error: return "Error"
-        case .subAgentSpawn: return "Agent"
-        case .subAgentResult: return "Agent Result"
-        case .permissionRequest: return "Permission"
-        case .permissionResponse: return "Granted"
-        case .costUpdate: return "Cost"
-        case .sessionStart: return "Started"
-        case .sessionEnd: return "Ended"
-        case .systemInfo: return "System"
-        }
-    }
-
-    private var eventColor: Color {
-        switch event.type {
-        case .userInput: return .blue
-        case .assistantMessage: return .primary
-        case .thinking: return .secondary
-        case .toolUse, .bashCommand: return .orange
-        case .toolResult, .bashOutput: return .green
-        case .fileRead: return .cyan
-        case .fileWrite, .fileEdit: return .mint
-        case .search: return .indigo
-        case .error: return .red
-        case .subAgentSpawn, .subAgentResult: return .purple
-        case .permissionRequest, .permissionResponse: return .yellow
-        case .costUpdate: return .secondary
-        case .sessionStart, .sessionEnd: return .secondary
-        case .systemInfo: return .secondary
-        }
-    }
-
-    private var eventBackground: Color {
-        switch event.type {
-        case .userInput: return .blue.opacity(0.03)
-        case .error: return .red.opacity(0.03)
-        case .thinking: return .clear
-        default: return .clear
+        case .fileRead: return "READ"
+        case .fileWrite: return "WRITE"
+        case .fileEdit: return "EDIT"
+        default: return "FILE"
         }
     }
 }

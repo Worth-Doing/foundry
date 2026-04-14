@@ -17,10 +17,8 @@ struct TimelineView: View {
     var filteredEvents: [SessionEvent] {
         var events = session.events
 
-        // Apply type filter
         switch filterType {
         case .all:
-            // Remove some noise
             events = events.filter { $0.type != .costUpdate && $0.type != .sessionStart }
         case .messages:
             events = events.filter { $0.type == .userInput || $0.type == .assistantMessage }
@@ -38,7 +36,6 @@ struct TimelineView: View {
             events = events.filter { $0.type == .error }
         }
 
-        // Apply search filter
         if !searchText.isEmpty {
             events = events.filter { event in
                 event.content.localizedCaseInsensitiveContains(searchText) ||
@@ -49,6 +46,10 @@ struct TimelineView: View {
         }
 
         return events
+    }
+
+    private var isLoading: Bool {
+        session.status == .running
     }
 
     var body: some View {
@@ -64,25 +65,30 @@ struct TimelineView: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 2) {
+                        LazyVStack(alignment: .leading, spacing: 0) {
                             ForEach(filteredEvents) { event in
                                 TimelineEventView(event: event)
                                     .id(event.id)
                             }
-                        }
-                        .padding(.vertical, 8)
-                    }
-                    .onChange(of: session.events.count) { _, _ in
-                        if autoScroll, let lastEvent = filteredEvents.last {
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                proxy.scrollTo(lastEvent.id, anchor: .bottom)
+
+                            // Typing indicator
+                            if isLoading {
+                                TypingIndicator()
+                                    .id("typing-indicator")
+                                    .padding(.top, 4)
                             }
                         }
+                        .padding(.vertical, 12)
+                    }
+                    .onChange(of: session.events.count) { _, _ in
+                        scrollToBottom(proxy)
+                    }
+                    .onChange(of: isLoading) { _, _ in
+                        scrollToBottom(proxy)
                     }
                     .onAppear {
-                        // Scroll to bottom on appear
-                        if let lastEvent = filteredEvents.last {
-                            proxy.scrollTo(lastEvent.id, anchor: .bottom)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            scrollToBottom(proxy)
                         }
                     }
                 }
@@ -90,9 +96,19 @@ struct TimelineView: View {
         }
     }
 
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        guard autoScroll else { return }
+        withAnimation(.easeOut(duration: 0.2)) {
+            if isLoading {
+                proxy.scrollTo("typing-indicator", anchor: .bottom)
+            } else if let lastEvent = filteredEvents.last {
+                proxy.scrollTo(lastEvent.id, anchor: .bottom)
+            }
+        }
+    }
+
     private var timelineToolbar: some View {
         HStack(spacing: 8) {
-            // Filter picker
             Picker("Filter", selection: $filterType) {
                 ForEach(EventTypeFilter.allCases, id: \.self) { filter in
                     Text(filter.rawValue).tag(filter)
@@ -101,13 +117,13 @@ struct TimelineView: View {
             .pickerStyle(.segmented)
             .frame(maxWidth: 350)
 
-            // Search
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.tertiary)
+                    .font(.caption)
                 TextField("Search...", text: $searchText)
                     .textFieldStyle(.plain)
-                    .font(.system(.body))
+                    .font(.callout)
 
                 if !searchText.isEmpty {
                     Button {
@@ -120,14 +136,17 @@ struct TimelineView: View {
                 }
             }
             .padding(6)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
             .frame(maxWidth: 200)
 
             Spacer()
 
-            Text("\(filteredEvents.count) events")
-                .font(.caption)
+            Text("\(filteredEvents.count)")
+                .font(.system(.caption, design: .monospaced, weight: .medium))
                 .foregroundStyle(.tertiary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.quaternary.opacity(0.3), in: Capsule())
 
             Toggle(isOn: $autoScroll) {
                 Image(systemName: "arrow.down.to.line")
@@ -141,19 +160,26 @@ struct TimelineView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             Spacer()
-            Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 36))
-                .foregroundStyle(.tertiary)
 
-            Text("No events yet")
-                .font(.headline)
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.1))
+                    .frame(width: 80, height: 80)
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .font(.system(size: 32))
+                    .foregroundStyle(Color.accentColor.opacity(0.6))
+            }
+
+            Text("Start a conversation")
+                .font(.title3.weight(.medium))
                 .foregroundStyle(.secondary)
 
-            Text("Send a message below to start")
-                .font(.subheadline)
+            Text("Type a message below and press Enter to send")
+                .font(.callout)
                 .foregroundStyle(.tertiary)
+
             Spacer()
         }
         .frame(maxWidth: .infinity)
@@ -178,5 +204,57 @@ struct TimelineView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Typing Indicator (animated dots)
+
+struct TypingIndicator: View {
+    @State private var phase = 0.0
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(Color.purple.opacity(0.15))
+                    .frame(width: 28, height: 28)
+                Text("C")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.purple)
+            }
+
+            HStack(spacing: 5) {
+                ForEach(0..<3) { i in
+                    Circle()
+                        .fill(Color.secondary)
+                        .frame(width: 7, height: 7)
+                        .scaleEffect(dotScale(for: i))
+                        .opacity(dotOpacity(for: i))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .onAppear {
+            withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
+                phase = 1.0
+            }
+        }
+    }
+
+    private func dotScale(for index: Int) -> Double {
+        let offset = Double(index) / 3.0
+        let adjusted = (phase + offset).truncatingRemainder(dividingBy: 1.0)
+        return 0.6 + 0.4 * sin(adjusted * .pi * 2)
+    }
+
+    private func dotOpacity(for index: Int) -> Double {
+        let offset = Double(index) / 3.0
+        let adjusted = (phase + offset).truncatingRemainder(dividingBy: 1.0)
+        return 0.3 + 0.7 * sin(adjusted * .pi * 2)
     }
 }
