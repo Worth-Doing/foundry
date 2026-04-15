@@ -4,6 +4,7 @@ struct TimelineEventView: View {
     let event: SessionEvent
     @State private var isExpanded = true
     @State private var isHovered = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Group {
@@ -39,6 +40,20 @@ struct TimelineEventView: View {
         .onHover { isHovered = $0 }
     }
 
+    // MARK: - Colors
+
+    private var bubbleBackground: Color {
+        colorScheme == .dark
+            ? Color(nsColor: .controlBackgroundColor)
+            : Color(nsColor: .controlBackgroundColor)
+    }
+
+    private var codeBg: Color {
+        colorScheme == .dark
+            ? Color(nsColor: .textBackgroundColor)
+            : Color.black.opacity(0.03)
+    }
+
     // MARK: - User message
 
     private var userBubble: some View {
@@ -71,7 +86,7 @@ struct TimelineEventView: View {
             // Avatar
             ZStack {
                 Circle()
-                    .fill(Color.purple.opacity(0.15))
+                    .fill(Color.purple.opacity(0.1))
                     .frame(width: 28, height: 28)
                 Text("C")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -82,7 +97,11 @@ struct TimelineEventView: View {
                 MarkdownView(text: event.content)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .background(bubbleBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(Color.primary.opacity(colorScheme == .light ? 0.06 : 0), lineWidth: 1)
+                    )
 
                 if isHovered {
                     Text(event.timestamp, style: .time)
@@ -103,7 +122,7 @@ struct TimelineEventView: View {
         HStack(alignment: .top, spacing: 10) {
             ZStack {
                 Circle()
-                    .fill(Color.secondary.opacity(0.1))
+                    .fill(Color.secondary.opacity(0.08))
                     .frame(width: 28, height: 28)
                 Image(systemName: "brain")
                     .font(.system(size: 12))
@@ -134,7 +153,7 @@ struct TimelineEventView: View {
         HStack(alignment: .top, spacing: 10) {
             ZStack {
                 Circle()
-                    .fill(Color.orange.opacity(0.15))
+                    .fill(Color.orange.opacity(0.1))
                     .frame(width: 28, height: 28)
                 Image(systemName: event.type == .bashCommand ? "terminal.fill" : "wrench.fill")
                     .font(.system(size: 12))
@@ -149,7 +168,7 @@ struct TimelineEventView: View {
                         .foregroundStyle(.orange)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                        .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
 
                     if isHovered {
                         Text(event.timestamp, style: .time)
@@ -165,7 +184,7 @@ struct TimelineEventView: View {
                         .textSelection(.enabled)
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                        .background(codeBg, in: RoundedRectangle(cornerRadius: 8))
                 } else if isExpanded, !event.content.isEmpty {
                     Text(event.content)
                         .font(.system(.callout, design: .monospaced))
@@ -173,11 +192,15 @@ struct TimelineEventView: View {
                         .lineLimit(6)
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                        .background(codeBg, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
             .padding(10)
-            .background(Color(.controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+            .background(bubbleBackground.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color.primary.opacity(colorScheme == .light ? 0.06 : 0), lineWidth: 1)
+            )
             .onTapGesture {
                 withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
             }
@@ -191,7 +214,7 @@ struct TimelineEventView: View {
     private var resultBubble: some View {
         HStack(alignment: .top, spacing: 10) {
             Rectangle()
-                .fill(Color.green.opacity(0.3))
+                .fill(Color.green.opacity(0.25))
                 .frame(width: 2)
                 .padding(.leading, 14)
 
@@ -205,7 +228,7 @@ struct TimelineEventView: View {
                     }
                     .frame(maxHeight: 150)
                     .padding(8)
-                    .background(Color(.textBackgroundColor).opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+                    .background(codeBg.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
                 } else {
                     Text(String(event.content.prefix(80)) + (event.content.count > 80 ? "..." : ""))
                         .font(.system(.caption, design: .monospaced))
@@ -228,7 +251,7 @@ struct TimelineEventView: View {
         HStack(alignment: .top, spacing: 10) {
             ZStack {
                 Circle()
-                    .fill(Color.red.opacity(0.15))
+                    .fill(Color.red.opacity(0.1))
                     .frame(width: 28, height: 28)
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 12))
@@ -241,7 +264,11 @@ struct TimelineEventView: View {
                 .textSelection(.enabled)
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                .background(.red.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(.red.opacity(0.15), lineWidth: 1)
+                )
 
             Spacer(minLength: 40)
         }
@@ -252,7 +279,7 @@ struct TimelineEventView: View {
     private var fileBubble: some View {
         HStack(spacing: 10) {
             Rectangle()
-                .fill(Color.mint.opacity(0.3))
+                .fill(Color.mint.opacity(0.25))
                 .frame(width: 2)
                 .padding(.leading, 14)
 
@@ -273,7 +300,7 @@ struct TimelineEventView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(.mint.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            .background(.mint.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
 
             Spacer()
         }
@@ -284,7 +311,7 @@ struct TimelineEventView: View {
     private var searchBubble: some View {
         HStack(spacing: 10) {
             Rectangle()
-                .fill(Color.indigo.opacity(0.3))
+                .fill(Color.indigo.opacity(0.25))
                 .frame(width: 2)
                 .padding(.leading, 14)
 
@@ -300,7 +327,7 @@ struct TimelineEventView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(.indigo.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            .background(.indigo.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
 
             Spacer()
         }
@@ -312,7 +339,7 @@ struct TimelineEventView: View {
         HStack(alignment: .top, spacing: 10) {
             ZStack {
                 Circle()
-                    .fill(Color.purple.opacity(0.15))
+                    .fill(Color.purple.opacity(0.1))
                     .frame(width: 28, height: 28)
                 Image(systemName: "person.2.fill")
                     .font(.system(size: 11))
@@ -340,7 +367,7 @@ struct TimelineEventView: View {
                 }
             }
             .padding(10)
-            .background(.purple.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+            .background(.purple.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
 
             Spacer(minLength: 40)
         }

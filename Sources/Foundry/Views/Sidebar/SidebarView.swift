@@ -2,7 +2,10 @@ import SwiftUI
 
 struct SidebarView: View {
     @EnvironmentObject var sessionManager: SessionManager
+    @EnvironmentObject var appSettings: AppSettings
     @State private var searchText = ""
+    @State private var renamingSessionID: UUID?
+    @State private var renameText = ""
 
     var filteredSessions: [Session] {
         if searchText.isEmpty {
@@ -44,13 +47,14 @@ struct SidebarView: View {
 
                 Section("History (\(historySessions.count))") {
                     if sessionManager.isLoadingHistory {
-                        HStack {
+                        HStack(spacing: 8) {
                             ProgressView()
                                 .scaleEffect(0.7)
                             Text("Loading sessions...")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                        .padding(.vertical, 4)
                     }
 
                     ForEach(historySessions) { session in
@@ -73,7 +77,7 @@ struct SidebarView: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.plain)
-                .help("New Session (⌘N)")
+                .help("New Session (Cmd+N)")
 
                 Button {
                     sessionManager.loadClaudeHistory()
@@ -91,7 +95,8 @@ struct SidebarView: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            .padding(8)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
         }
         .navigationTitle("Foundry")
     }
@@ -102,9 +107,13 @@ struct SidebarView: View {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.message = "Select project directory"
+        panel.prompt = "Open"
 
         if panel.runModal() == .OK, let url = panel.url {
-            let id = sessionManager.createSession(projectPath: url.path)
+            let id = sessionManager.createSession(
+                projectPath: url.path,
+                model: appSettings.defaultModel
+            )
             sessionManager.startSession(id)
         }
     }
@@ -125,6 +134,27 @@ struct SidebarView: View {
 
         Divider()
 
+        Button("Rename...") {
+            renamingSessionID = session.id
+            renameText = session.name
+        }
+
+        Button("Duplicate Session") {
+            let id = sessionManager.createSession(
+                projectPath: session.projectPath,
+                name: session.name + " (copy)",
+                model: session.modelName
+            )
+            sessionManager.startSession(id)
+        }
+
+        Divider()
+
+        Button("Copy Project Path") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(session.projectPath, forType: .string)
+        }
+
         Button("Reveal in Finder") {
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: session.projectPath)
         }
@@ -141,22 +171,44 @@ struct SidebarView: View {
 
 struct SessionRow: View {
     let session: Session
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: 10) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
+            // Status indicator
+            ZStack {
+                Circle()
+                    .fill(statusColor.opacity(0.15))
+                    .frame(width: 24, height: 24)
 
-            VStack(alignment: .leading, spacing: 2) {
+                if session.status == .running {
+                    ProgressView()
+                        .scaleEffect(0.45)
+                        .frame(width: 12, height: 12)
+                } else {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 7, height: 7)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
                 Text(session.name)
                     .font(.system(.body, weight: .medium))
                     .lineLimit(1)
 
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
+                    // Model badge
+                    Text(shortModelName)
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(modelColor)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(modelColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 3))
+
                     Text(abbreviatedPath)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                         .lineLimit(1)
                         .truncationMode(.head)
                 }
@@ -164,22 +216,16 @@ struct SessionRow: View {
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 2) {
-                if session.status == .running {
-                    ProgressView()
-                        .scaleEffect(0.5)
-                        .frame(width: 16, height: 16)
-                }
-
+            VStack(alignment: .trailing, spacing: 3) {
                 if session.tokenUsage.estimatedCostUSD > 0 {
                     Text(String(format: "$%.2f", session.tokenUsage.estimatedCostUSD))
                         .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(.secondary)
                 }
 
                 Text(session.createdAt, style: .relative)
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.quaternary)
             }
         }
         .padding(.vertical, 2)
@@ -191,8 +237,22 @@ struct SessionRow: View {
         case .idle: return .blue
         case .initializing: return .orange
         case .error: return .red
-        case .stopped: return .gray
+        case .stopped: return .secondary
         }
+    }
+
+    private var shortModelName: String {
+        let name = session.modelName
+        if name.contains("opus") { return "Opus" }
+        if name.contains("haiku") { return "Haiku" }
+        return "Sonnet"
+    }
+
+    private var modelColor: Color {
+        let name = session.modelName
+        if name.contains("opus") { return .purple }
+        if name.contains("haiku") { return .green }
+        return .blue
     }
 
     private var abbreviatedPath: String {

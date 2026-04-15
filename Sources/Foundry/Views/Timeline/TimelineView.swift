@@ -135,8 +135,9 @@ struct TimelineView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(6)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
             .frame(maxWidth: 200)
 
             Spacer()
@@ -165,11 +166,11 @@ struct TimelineView: View {
 
             ZStack {
                 Circle()
-                    .fill(Color.accentColor.opacity(0.1))
+                    .fill(Color.accentColor.opacity(0.08))
                     .frame(width: 80, height: 80)
                 Image(systemName: "bubble.left.and.bubble.right")
                     .font(.system(size: 32))
-                    .foregroundStyle(Color.accentColor.opacity(0.6))
+                    .foregroundStyle(Color.accentColor.opacity(0.5))
             }
 
             Text("Start a conversation")
@@ -216,7 +217,7 @@ struct TypingIndicator: View {
         HStack(alignment: .top, spacing: 10) {
             ZStack {
                 Circle()
-                    .fill(Color.purple.opacity(0.15))
+                    .fill(Color.purple.opacity(0.1))
                     .frame(width: 28, height: 28)
                 Text("C")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -226,7 +227,7 @@ struct TypingIndicator: View {
             HStack(spacing: 5) {
                 ForEach(0..<3) { i in
                     Circle()
-                        .fill(Color.secondary)
+                        .fill(Color.secondary.opacity(0.5))
                         .frame(width: 7, height: 7)
                         .scaleEffect(dotScale(for: i))
                         .opacity(dotOpacity(for: i))
@@ -234,7 +235,7 @@ struct TypingIndicator: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
-            .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
 
             Spacer()
         }

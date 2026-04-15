@@ -10,13 +10,13 @@ struct OnboardingView: View {
 
             // Icon
             ZStack {
-                Circle()
-                    .fill(.red.opacity(0.1))
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(.orange.opacity(0.08))
                     .frame(width: 100, height: 100)
 
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 40))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.orange)
             }
 
             // Title
@@ -33,7 +33,7 @@ struct OnboardingView: View {
 
             // Installation instructions
             VStack(alignment: .leading, spacing: 16) {
-                Text("Installation Steps:")
+                Text("Installation Steps")
                     .font(.headline)
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -48,7 +48,11 @@ struct OnboardingView: View {
                 }
             }
             .padding(24)
-            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+            )
             .frame(maxWidth: 500)
 
             // Retry button
@@ -109,7 +113,7 @@ struct OnboardingView: View {
             .foregroundStyle(.secondary)
         }
         .padding(10)
-        .background(Color(.textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+        .background(Color.black.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
         .padding(.leading, 32)
     }
 }

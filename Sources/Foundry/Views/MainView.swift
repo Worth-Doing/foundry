@@ -10,9 +10,8 @@ enum NavigationPage: String, CaseIterable {
 
 struct MainView: View {
     @EnvironmentObject var sessionManager: SessionManager
+    @EnvironmentObject var appSettings: AppSettings
     @Binding var showCommandPalette: Bool
-    @State private var showTerminalPanel = true
-    @State private var showFilePanel = false
     @State private var currentPage: NavigationPage = .sessions
 
     var body: some View {
@@ -50,7 +49,7 @@ struct MainView: View {
                 // Sessions list (always visible)
                 SidebarView()
             }
-            .frame(minWidth: 220)
+            .frame(minWidth: 240)
         } detail: {
             switch currentPage {
             case .sessions:
@@ -98,9 +97,11 @@ struct MainView: View {
                 .frame(minWidth: 400)
 
                 // Right: File changes panel
-                if showFilePanel {
+                if appSettings.showFilePanel {
                     VStack(spacing: 0) {
-                        filePanelHeader
+                        panelHeader(title: "File Changes", icon: "doc.on.doc") {
+                            appSettings.showFilePanel = false
+                        }
                         Divider()
                         FileChangesPanel(session: session)
                     }
@@ -109,10 +110,12 @@ struct MainView: View {
             }
 
             // Bottom: Terminal logs
-            if showTerminalPanel {
+            if appSettings.showTerminalPanel {
                 Divider()
                 VStack(spacing: 0) {
-                    terminalPanelHeader
+                    panelHeader(title: "Terminal Output", icon: "terminal") {
+                        appSettings.showTerminalPanel = false
+                    }
                     TerminalView(session: session)
                 }
                 .frame(height: 180)
@@ -123,6 +126,31 @@ struct MainView: View {
         }
     }
 
+    private func panelHeader(title: String, icon: String, onClose: @escaping () -> Void) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.system(.caption, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button {
+                onClose()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 18, height: 18)
+                    .background(.quaternary.opacity(0.5), in: Circle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+    }
+
     @ViewBuilder
     private var toolbarButtons: some View {
         Button {
@@ -130,18 +158,18 @@ struct MainView: View {
         } label: {
             Image(systemName: "command")
         }
-        .help("Command Palette (⌘K)")
+        .help("Command Palette (Cmd+K)")
 
         if currentPage == .sessions {
-            Toggle(isOn: $showFilePanel) {
+            Toggle(isOn: $appSettings.showFilePanel) {
                 Image(systemName: "doc.on.doc")
             }
-            .help("Toggle File Changes Panel")
+            .help("Toggle File Changes Panel (Cmd+Shift+F)")
 
-            Toggle(isOn: $showTerminalPanel) {
+            Toggle(isOn: $appSettings.showTerminalPanel) {
                 Image(systemName: "terminal")
             }
-            .help("Toggle Terminal Panel")
+            .help("Toggle Terminal Panel (Cmd+Shift+T)")
 
             if let id = sessionManager.activeSessionID,
                sessionManager.activeSession?.status == .running {
@@ -151,47 +179,9 @@ struct MainView: View {
                     Image(systemName: "stop.fill")
                         .foregroundStyle(.red)
                 }
-                .help("Stop Session")
+                .help("Stop Session (Cmd+.)")
             }
         }
-    }
-
-    private var filePanelHeader: some View {
-        HStack {
-            Label("File Changes", systemImage: "doc.on.doc")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Button {
-                showFilePanel = false
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(.bar)
-    }
-
-    private var terminalPanelHeader: some View {
-        HStack {
-            Label("Terminal Output", systemImage: "terminal")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Button {
-                showTerminalPanel = false
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(.bar)
     }
 
     private func iconForPage(_ page: NavigationPage) -> String {
@@ -209,44 +199,115 @@ struct MainView: View {
 
 struct WelcomeView: View {
     @EnvironmentObject var sessionManager: SessionManager
+    @EnvironmentObject var appSettings: AppSettings
+
+    var recentProjects: [String] {
+        let paths = sessionManager.sessions.map(\.projectPath)
+        var seen = Set<String>()
+        return paths.filter { seen.insert($0).inserted }.prefix(5).map { $0 }
+    }
 
     var body: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "hammer.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(.tint)
+        VStack(spacing: 0) {
+            Spacer()
 
-            Text("Foundry")
-                .font(.largeTitle.bold())
+            // Hero
+            VStack(spacing: 16) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(.tint.opacity(0.08))
+                        .frame(width: 88, height: 88)
+                    Image(systemName: "hammer.fill")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.tint)
+                }
 
-            Text("Native Claude Code Interface")
-                .font(.title3)
-                .foregroundStyle(.secondary)
+                Text("Foundry")
+                    .font(.largeTitle.bold())
 
+                Text("Native Claude Code Interface")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer().frame(height: 32)
+
+            // Quick actions
             VStack(spacing: 12) {
-                Text("Select a session from the sidebar or create a new one")
-                    .foregroundStyle(.tertiary)
-
                 Button {
                     openProject()
                 } label: {
                     Label("Open Project", systemImage: "folder.badge.plus")
-                        .frame(width: 180)
+                        .frame(width: 200)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-            }
-            .padding(.top, 8)
 
-            if let version = sessionManager.claudeVersion {
-                Text("Claude Code \(version)")
+                Text("or select a session from the sidebar")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
-                    .padding(.top, 20)
+            }
+
+            // Recent projects
+            if !recentProjects.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Recent Projects")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+
+                    ForEach(recentProjects, id: \.self) { path in
+                        Button {
+                            let id = sessionManager.createSession(
+                                projectPath: path,
+                                model: appSettings.defaultModel
+                            )
+                            sessionManager.startSession(id)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "folder")
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 16)
+
+                                Text(abbreviatePath(path))
+                                    .font(.system(.callout, design: .monospaced))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+
+                                Spacer()
+
+                                Image(systemName: "arrow.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .frame(maxWidth: 400)
+                .padding(.top, 28)
+            }
+
+            Spacer()
+
+            // Footer
+            if let version = sessionManager.claudeVersion {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 6, height: 6)
+                    Text("Claude Code \(version)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.bottom, 16)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.background)
     }
 
     private func openProject() {
@@ -254,11 +315,23 @@ struct WelcomeView: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
+        panel.prompt = "Open"
 
         if panel.runModal() == .OK, let url = panel.url {
-            let id = sessionManager.createSession(projectPath: url.path)
+            let id = sessionManager.createSession(
+                projectPath: url.path,
+                model: appSettings.defaultModel
+            )
             sessionManager.startSession(id)
         }
+    }
+
+    private func abbreviatePath(_ path: String) -> String {
+        if let home = ProcessInfo.processInfo.environment["HOME"],
+           path.hasPrefix(home) {
+            return "~" + path.dropFirst(home.count)
+        }
+        return path
     }
 }
 
@@ -269,12 +342,17 @@ struct FileChangesPanel: View {
 
     var body: some View {
         if session.fileChanges.isEmpty {
-            VStack {
+            VStack(spacing: 8) {
                 Spacer()
+                Image(systemName: "doc.text.magnifyingglass")
+                    .font(.title2)
+                    .foregroundStyle(.quaternary)
                 Text("No file changes yet")
+                    .font(.caption)
                     .foregroundStyle(.tertiary)
                 Spacer()
             }
+            .frame(maxWidth: .infinity)
         } else {
             List(session.fileChanges) { change in
                 FileChangeRow(change: change)

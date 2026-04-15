@@ -6,6 +6,7 @@ struct CommandPaletteView: View {
     @State private var searchText = ""
     @State private var selectedIndex = 0
     @FocusState private var isSearchFocused: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     private var filteredCommands: [ClaudeCommand] {
         ClaudeCommandRegistry.search(searchText)
@@ -48,8 +49,11 @@ struct CommandPaletteView: View {
                     isPresented = false
                 }
                 .buttonStyle(.plain)
-                .font(.caption)
+                .font(.system(.caption, design: .monospaced, weight: .medium))
                 .foregroundStyle(.tertiary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 4))
                 .keyboardShortcut(.escape, modifiers: [])
             }
             .padding(16)
@@ -72,10 +76,11 @@ struct CommandPaletteView: View {
                             }
                         } header: {
                             Text(category.rawValue)
-                                .font(.caption)
+                                .font(.system(.caption2, weight: .semibold))
                                 .foregroundStyle(.tertiary)
+                                .textCase(.uppercase)
                                 .padding(.horizontal, 16)
-                                .padding(.top, 8)
+                                .padding(.top, 10)
                                 .padding(.bottom, 2)
                         }
                     }
@@ -87,18 +92,34 @@ struct CommandPaletteView: View {
             Divider()
 
             // Footer
-            HStack {
-                Text("↑↓ Navigate")
-                Text("↵ Execute")
-                Text("esc Close")
+            HStack(spacing: 16) {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.system(size: 9))
+                    Text("Navigate")
+                }
+                HStack(spacing: 4) {
+                    Image(systemName: "return")
+                        .font(.system(size: 9))
+                    Text("Execute")
+                }
+                HStack(spacing: 4) {
+                    Text("esc")
+                        .font(.system(.caption2, design: .monospaced))
+                    Text("Close")
+                }
             }
             .font(.caption2)
             .foregroundStyle(.tertiary)
             .padding(8)
         }
-        .frame(width: 500)
+        .frame(width: 520)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .shadow(radius: 20)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.primary.opacity(colorScheme == .light ? 0.1 : 0.05), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
         .onAppear {
             isSearchFocused = true
             selectedIndex = 0
@@ -133,7 +154,6 @@ struct CommandPaletteView: View {
     private func executeSystemCommand(_ command: ClaudeCommand) {
         switch command.id {
         case "config":
-            // Open settings window
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         case "doctor":
             runClaudeCommand(["doctor"])
@@ -148,7 +168,6 @@ struct CommandPaletteView: View {
         case "login", "logout":
             runClaudeCommand([command.id])
         default:
-            // For other commands, send through active session if available
             if let sessionID = sessionManager.activeSessionID {
                 sessionManager.sendCommand(to: sessionID, command: command)
             }
@@ -190,6 +209,7 @@ struct CommandRow: View {
     let isSelected: Bool
     let hasActiveSession: Bool
     let action: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     private var isEnabled: Bool {
         !command.requiresSession || hasActiveSession
@@ -219,7 +239,12 @@ struct CommandRow: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 6)
-            .background(isSelected ? Color.accentColor.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 6))
+            .background(
+                isSelected
+                    ? Color.accentColor.opacity(colorScheme == .light ? 0.08 : 0.12)
+                    : .clear,
+                in: RoundedRectangle(cornerRadius: 6)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

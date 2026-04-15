@@ -96,6 +96,19 @@ struct CodeBlockView: View {
     let language: String
     let code: String
     @State private var isCopied = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var bgColor: Color {
+        colorScheme == .dark
+            ? Color(nsColor: .textBackgroundColor).opacity(0.8)
+            : Color.black.opacity(0.04)
+    }
+
+    private var headerBg: Color {
+        colorScheme == .dark
+            ? Color(nsColor: .windowBackgroundColor).opacity(0.6)
+            : Color.black.opacity(0.06)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -126,7 +139,7 @@ struct CodeBlockView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(Color(.windowBackgroundColor).opacity(0.6))
+                .background(headerBg)
             }
 
             // Code content
@@ -137,10 +150,10 @@ struct CodeBlockView: View {
                     .padding(12)
             }
         }
-        .background(Color(.textBackgroundColor).opacity(0.8), in: RoundedRectangle(cornerRadius: 8))
+        .background(bgColor, in: RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                .strokeBorder(Color.primary.opacity(colorScheme == .light ? 0.08 : 0.06), lineWidth: 1)
         )
     }
 }
@@ -150,6 +163,7 @@ struct CodeBlockView: View {
 struct TableBlockView: View {
     let headers: [String]
     let rows: [[String]]
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -163,7 +177,7 @@ struct TableBlockView: View {
                         .padding(.vertical, 6)
                 }
             }
-            .background(Color(.controlBackgroundColor))
+            .background(Color(nsColor: .controlBackgroundColor))
 
             Divider()
 
@@ -178,13 +192,13 @@ struct TableBlockView: View {
                             .padding(.vertical, 4)
                     }
                 }
-                .background(rowIdx % 2 == 0 ? Color.clear : Color(.controlBackgroundColor).opacity(0.3))
+                .background(rowIdx % 2 == 0 ? Color.clear : Color(nsColor: .controlBackgroundColor).opacity(0.3))
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(
             RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
     }
 }
@@ -342,23 +356,20 @@ struct MarkdownParser {
         return blocks
     }
 
-    // MARK: - Inline Markdown → AttributedString
+    // MARK: - Inline Markdown -> AttributedString
 
     static func inlineAttributed(_ text: String) -> AttributedString {
-        // Use Apple's built-in Markdown parser for inline formatting
-        // It handles **bold**, *italic*, `code`, [links](url), etc.
         if let attributed = try? AttributedString(markdown: text, options: .init(
             allowsExtendedAttributes: true,
             interpretedSyntax: .inlineOnlyPreservingWhitespace,
             failurePolicy: .returnPartiallyParsedIfPossible
         )) {
-            // Apply monospace font to inline code
             var result = attributed
             for run in result.runs {
                 if run.inlinePresentationIntent?.contains(.code) == true {
                     let range = run.range
                     result[range].font = .system(size: 12.5, design: .monospaced)
-                    result[range].backgroundColor = Color(.controlBackgroundColor)
+                    result[range].backgroundColor = Color(nsColor: .controlBackgroundColor)
                 }
             }
             return result

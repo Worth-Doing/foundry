@@ -2,12 +2,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var sessionManager: SessionManager
+    @EnvironmentObject var appSettings: AppSettings
     @State private var selectedTab = SettingsTab.general
-    @State private var defaultModel = "claude-sonnet-4-6"
-    @State private var autoSaveSessions = true
-    @State private var maxLogEntries = 10000
-    @State private var showRawOutput = false
-    @State private var permissionMode = "default"
 
     enum SettingsTab: String, CaseIterable {
         case general = "General"
@@ -44,7 +40,7 @@ struct SettingsView: View {
                 .tabItem { Label("About", systemImage: "info.circle") }
                 .tag(SettingsTab.about)
         }
-        .frame(width: 550, height: 400)
+        .frame(width: 560, height: 420)
     }
 
     // MARK: - General Tab
@@ -52,19 +48,23 @@ struct SettingsView: View {
     private var generalTab: some View {
         Form {
             Section("Sessions") {
-                Toggle("Auto-save sessions", isOn: $autoSaveSessions)
-                Toggle("Show raw output by default", isOn: $showRawOutput)
+                Toggle("Auto-save sessions", isOn: $appSettings.autoSaveSessions)
+                Toggle("Show raw output by default", isOn: $appSettings.showRawOutput)
 
-                Stepper("Max log entries: \(maxLogEntries)",
-                        value: $maxLogEntries, in: 1000...100000, step: 1000)
+                Stepper("Max log entries: \(appSettings.maxLogEntries)",
+                        value: $appSettings.maxLogEntries, in: 1000...100000, step: 1000)
             }
 
             Section("Appearance") {
-                Picker("Color Scheme", selection: .constant("System")) {
-                    Text("System").tag("System")
-                    Text("Light").tag("Light")
-                    Text("Dark").tag("Dark")
+                Picker("Theme", selection: $appSettings.colorScheme) {
+                    ForEach(AppSettings.AppColorScheme.allCases, id: \.self) { scheme in
+                        Label(scheme.rawValue, systemImage: scheme.icon)
+                            .tag(scheme)
+                    }
                 }
+
+                Toggle("Show Terminal Panel", isOn: $appSettings.showTerminalPanel)
+                Toggle("Show File Changes Panel", isOn: $appSettings.showFilePanel)
             }
         }
         .formStyle(.grouped)
@@ -76,7 +76,7 @@ struct SettingsView: View {
     private var modelsTab: some View {
         Form {
             Section("Default Model") {
-                Picker("Model", selection: $defaultModel) {
+                Picker("Model", selection: $appSettings.defaultModel) {
                     Text("Claude Opus 4.6").tag("claude-opus-4-6")
                     Text("Claude Sonnet 4.6").tag("claude-sonnet-4-6")
                     Text("Claude Haiku 4.5").tag("claude-haiku-4-5-20251001")
@@ -87,14 +87,51 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Model Info") {
-                LabeledContent("Opus 4.6", value: "Most capable, highest quality")
-                LabeledContent("Sonnet 4.6", value: "Balanced performance")
-                LabeledContent("Haiku 4.5", value: "Fastest, most efficient")
+            Section("Model Capabilities") {
+                modelInfoRow(
+                    name: "Opus 4.6",
+                    badge: "Most Capable",
+                    badgeColor: .purple,
+                    description: "Highest quality reasoning, best for complex tasks"
+                )
+                modelInfoRow(
+                    name: "Sonnet 4.6",
+                    badge: "Balanced",
+                    badgeColor: .blue,
+                    description: "Great balance of speed and capability"
+                )
+                modelInfoRow(
+                    name: "Haiku 4.5",
+                    badge: "Fastest",
+                    badgeColor: .green,
+                    description: "Most efficient for simple tasks"
+                )
             }
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    private func modelInfoRow(name: String, badge: String, badgeColor: Color, description: String) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 8) {
+                    Text(name)
+                        .font(.system(.body, weight: .medium))
+                    Text(badge)
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(badgeColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                        .foregroundStyle(badgeColor)
+                }
+                Text(description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
     }
 
     // MARK: - Permissions Tab
@@ -102,7 +139,7 @@ struct SettingsView: View {
     private var permissionsTab: some View {
         Form {
             Section("Permission Mode") {
-                Picker("Mode", selection: $permissionMode) {
+                Picker("Mode", selection: $appSettings.permissionMode) {
                     Text("Default").tag("default")
                     Text("Accept Edits").tag("acceptEdits")
                     Text("Plan").tag("plan")
@@ -115,40 +152,32 @@ struct SettingsView: View {
             }
 
             Section("Tool Permissions") {
-                LabeledContent("Bash") {
-                    Text("Prompt")
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
-                }
-                LabeledContent("Edit") {
-                    Text("Allow")
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(.green.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
-                }
-                LabeledContent("Read") {
-                    Text("Allow")
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(.green.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
-                }
-                LabeledContent("Write") {
-                    Text("Allow")
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(.green.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
-                }
+                permissionRow(tool: "Bash", status: "Prompt", color: .orange)
+                permissionRow(tool: "Edit", status: "Allow", color: .green)
+                permissionRow(tool: "Read", status: "Allow", color: .green)
+                permissionRow(tool: "Write", status: "Allow", color: .green)
             }
         }
         .formStyle(.grouped)
         .padding()
     }
 
+    private func permissionRow(tool: String, status: String, color: Color) -> some View {
+        LabeledContent(tool) {
+            Text(status)
+                .font(.caption)
+                .fontWeight(.medium)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                .foregroundStyle(color)
+        }
+    }
+
     // MARK: - Memory Tab
 
     private var memoryTab: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             Text("Claude Code Memory")
                 .font(.headline)
 
@@ -158,20 +187,28 @@ struct SettingsView: View {
 
             Divider()
 
-            Button("Open Memory Directory") {
-                if let home = ProcessInfo.processInfo.environment["HOME"] {
-                    let path = "\(home)/.claude"
-                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    if let home = ProcessInfo.processInfo.environment["HOME"] {
+                        let path = "\(home)/.claude"
+                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
+                    }
+                } label: {
+                    Label("Open Memory Directory", systemImage: "folder")
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-            }
 
-            Button("Run /memory in Active Session") {
-                if let sessionID = sessionManager.activeSessionID {
-                    let memoryCmd = ClaudeCommandRegistry.allCommands.first { $0.id == "memory" }!
-                    sessionManager.sendCommand(to: sessionID, command: memoryCmd)
+                Button {
+                    if let sessionID = sessionManager.activeSessionID {
+                        let memoryCmd = ClaudeCommandRegistry.allCommands.first { $0.id == "memory" }!
+                        sessionManager.sendCommand(to: sessionID, command: memoryCmd)
+                    }
+                } label: {
+                    Label("Run /memory in Active Session", systemImage: "brain")
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .disabled(sessionManager.activeSessionID == nil)
             }
-            .disabled(sessionManager.activeSessionID == nil)
 
             Spacer()
         }
@@ -191,7 +228,6 @@ struct SettingsView: View {
                 }
 
                 Button("Run Health Check (/doctor)") {
-                    // Run claude doctor
                     if let path = ClaudeProcessController.findClaudePath() {
                         DispatchQueue.global().async {
                             let process = Process()
@@ -211,6 +247,11 @@ struct SettingsView: View {
                     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: foundryDir.path)
                 }
 
+                Button("Reset All Settings") {
+                    let domain = Bundle.main.bundleIdentifier ?? "com.foundry.app"
+                    UserDefaults.standard.removePersistentDomain(forName: domain)
+                }
+
                 Button("Clear All Sessions", role: .destructive) {
                     for session in sessionManager.sessions {
                         sessionManager.deleteSession(session.id)
@@ -225,23 +266,28 @@ struct SettingsView: View {
     // MARK: - About Tab
 
     private var aboutTab: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Spacer()
 
             Image(systemName: "hammer.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.accentColor)
+                .font(.system(size: 52))
+                .foregroundStyle(.tint)
 
-            Text("Foundry")
-                .font(.title.bold())
+            VStack(spacing: 4) {
+                Text("Foundry")
+                    .font(.title.bold())
 
-            Text("Native Claude Code Interface for macOS")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                Text("Native Claude Code Interface for macOS")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
 
-            Text("Version 1.0.0")
+            Text("Version 2.0.0")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(.quaternary.opacity(0.3), in: Capsule())
 
             Divider()
                 .frame(width: 200)

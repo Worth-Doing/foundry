@@ -111,6 +111,7 @@ struct PromptView: View {
     let sessionID: UUID
     @EnvironmentObject var sessionManager: SessionManager
     @State private var promptText = ""
+    @Environment(\.colorScheme) private var colorScheme
 
     private var session: Session? {
         sessionManager.sessions.first(where: { $0.id == sessionID })
@@ -138,15 +139,22 @@ struct PromptView: View {
                     Button {
                         sessionManager.stopSession(sessionID)
                     } label: {
-                        Text("Stop")
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                        HStack(spacing: 4) {
+                            Image(systemName: "stop.fill")
+                                .font(.system(size: 8))
+                            Text("Stop")
+                                .font(.caption)
+                        }
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
                     }
                     .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 6)
-                .background(Color.accentColor.opacity(0.05))
+                .background(Color.accentColor.opacity(0.04))
 
                 Divider()
             }
@@ -154,22 +162,28 @@ struct PromptView: View {
             // Input area
             HStack(alignment: .bottom, spacing: 10) {
                 // Text input container
-                VStack(spacing: 0) {
-                    ChatTextEditor(
-                        text: $promptText,
-                        placeholder: isProcessing ? "Wait for Claude to finish..." : "Message Claude... (Enter to send, Shift+Enter for new line)",
-                        isEnabled: !isProcessing,
-                        onSend: { sendMessage() }
-                    )
-                    .frame(minHeight: 36, maxHeight: 120)
-                }
+                ChatTextEditor(
+                    text: $promptText,
+                    placeholder: isProcessing
+                        ? "Wait for Claude to finish..."
+                        : "Message Claude... (Enter to send, Shift+Enter for new line)",
+                    isEnabled: !isProcessing,
+                    onSend: { sendMessage() }
+                )
+                .frame(minHeight: 36, maxHeight: 120)
+                .padding(.horizontal, 4)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.controlBackgroundColor))
+                        .fill(Color(nsColor: .controlBackgroundColor))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(Color.accentColor.opacity(isProcessing ? 0 : 0.3), lineWidth: 1)
+                        .strokeBorder(
+                            isProcessing
+                                ? Color.clear
+                                : Color.accentColor.opacity(colorScheme == .light ? 0.2 : 0.3),
+                            lineWidth: 1
+                        )
                 )
 
                 // Send button
@@ -190,14 +204,14 @@ struct PromptView: View {
                             }
                         }
                         .buttonStyle(.plain)
-                        .help("Stop (Esc)")
+                        .help("Stop (Cmd+.)")
                     } else {
                         Button {
                             sendMessage()
                         } label: {
                             ZStack {
                                 Circle()
-                                    .fill(canSend ? Color.accentColor : Color.secondary.opacity(0.3))
+                                    .fill(canSend ? Color.accentColor : Color.secondary.opacity(0.2))
                                     .frame(width: 32, height: 32)
                                 Image(systemName: "arrow.up")
                                     .font(.system(size: 14, weight: .bold))

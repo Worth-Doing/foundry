@@ -5,6 +5,7 @@ struct TerminalView: View {
     @State private var filterSource: LogSource? = nil
     @State private var autoScroll = true
     @State private var searchText = ""
+    @Environment(\.colorScheme) private var colorScheme
 
     var filteredLogs: [LogEntry] {
         var logs = session.rawLogs
@@ -43,7 +44,8 @@ struct TerminalView: View {
                         .textFieldStyle(.plain)
                         .font(.system(.caption, design: .monospaced))
                 }
-                .padding(4)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
                 .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 4))
 
                 Spacer()
@@ -55,7 +57,7 @@ struct TerminalView: View {
                 Button {
                     autoScroll.toggle()
                 } label: {
-                    Image(systemName: autoScroll ? "arrow.down.to.line" : "arrow.down.to.line")
+                    Image(systemName: "arrow.down.to.line")
                         .foregroundStyle(autoScroll ? Color.accentColor : Color.secondary)
                 }
                 .buttonStyle(.plain)
@@ -78,7 +80,7 @@ struct TerminalView: View {
                     .padding(4)
                 }
                 .font(.system(.caption, design: .monospaced))
-                .background(Color(.textBackgroundColor))
+                .background(colorScheme == .dark ? Color(nsColor: .textBackgroundColor) : Color.black.opacity(0.02))
                 .onChange(of: session.rawLogs.count) { _, _ in
                     if autoScroll, let lastLog = filteredLogs.last {
                         proxy.scrollTo(lastLog.id, anchor: .bottom)

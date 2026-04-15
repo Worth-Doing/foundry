@@ -5,6 +5,7 @@ struct DiffView: View {
     let fileName: String
 
     @State private var viewMode: DiffViewMode = .unified
+    @Environment(\.colorScheme) private var colorScheme
 
     enum DiffViewMode: String, CaseIterable {
         case unified = "Unified"
@@ -16,6 +17,7 @@ struct DiffView: View {
             // Header
             HStack {
                 Image(systemName: "doc.text")
+                    .foregroundStyle(.secondary)
                 Text(fileName)
                     .font(.system(.body, design: .monospaced, weight: .medium))
 
@@ -139,8 +141,8 @@ struct DiffView: View {
 
     private func lineColor(for type: DiffLineType) -> Color {
         switch type {
-        case .addition: return .green
-        case .deletion: return .red
+        case .addition: return colorScheme == .dark ? .green : Color(red: 0.13, green: 0.55, blue: 0.13)
+        case .deletion: return colorScheme == .dark ? .red : Color(red: 0.7, green: 0.15, blue: 0.15)
         case .context: return .primary
         case .header: return .cyan
         }
@@ -148,8 +150,8 @@ struct DiffView: View {
 
     private func lineBackground(for type: DiffLineType) -> Color {
         switch type {
-        case .addition: return .green.opacity(0.08)
-        case .deletion: return .red.opacity(0.08)
+        case .addition: return colorScheme == .dark ? .green.opacity(0.08) : Color(red: 0.85, green: 0.95, blue: 0.85)
+        case .deletion: return colorScheme == .dark ? .red.opacity(0.08) : Color(red: 0.95, green: 0.87, blue: 0.87)
         case .context: return .clear
         case .header: return .cyan.opacity(0.05)
         }

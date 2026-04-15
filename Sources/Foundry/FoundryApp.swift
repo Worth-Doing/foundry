@@ -3,13 +3,16 @@ import SwiftUI
 @main
 struct FoundryApp: App {
     @StateObject private var sessionManager = SessionManager()
+    @StateObject private var appSettings = AppSettings()
     @State private var showCommandPalette = false
 
     var body: some Scene {
         WindowGroup {
             MainView(showCommandPalette: $showCommandPalette)
                 .environmentObject(sessionManager)
-                .frame(minWidth: 900, minHeight: 600)
+                .environmentObject(appSettings)
+                .frame(minWidth: 960, minHeight: 640)
+                .preferredColorScheme(appSettings.resolvedColorScheme)
                 .onAppear {
                     sessionManager.checkClaudeAvailability()
                 }
@@ -28,12 +31,12 @@ struct FoundryApp: App {
                 Divider()
 
                 Button("Open Project...") {
-                    showOpenProjectDialog()
+                    showNewSessionDialog()
                 }
                 .keyboardShortcut("o", modifiers: [.command])
             }
 
-            // Edit menu additions
+            // Session menu
             CommandMenu("Session") {
                 Button("Send Message") {}
                     .keyboardShortcut(.return, modifiers: [.command])
@@ -46,11 +49,23 @@ struct FoundryApp: App {
                     }
                 }
                 .keyboardShortcut(".", modifiers: [.command])
+                .disabled(sessionManager.activeSession?.status != .running)
 
                 Button("Restart Session") {
                     restartActiveSession()
                 }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
+                .disabled(sessionManager.activeSessionID == nil)
+
+                Divider()
+
+                Button("Clear Conversation") {
+                    if let id = sessionManager.activeSessionID {
+                        let cmd = ClaudeCommandRegistry.allCommands.first { $0.id == "clear" }!
+                        sessionManager.sendCommand(to: id, command: cmd)
+                    }
+                }
+                .disabled(sessionManager.activeSessionID == nil)
             }
 
             // Command palette
@@ -77,12 +92,26 @@ struct FoundryApp: App {
                     )
                 }
                 .keyboardShortcut("s", modifiers: [.command, .control])
+
+                Divider()
+
+                Button("Toggle Terminal Panel") {
+                    appSettings.showTerminalPanel.toggle()
+                }
+                .keyboardShortcut("t", modifiers: [.command, .shift])
+
+                Button("Toggle File Panel") {
+                    appSettings.showFilePanel.toggle()
+                }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
             }
         }
 
         Settings {
             SettingsView()
                 .environmentObject(sessionManager)
+                .environmentObject(appSettings)
+                .preferredColorScheme(appSettings.resolvedColorScheme)
         }
     }
 
@@ -92,15 +121,15 @@ struct FoundryApp: App {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.message = "Select a project directory for the new session"
+        panel.prompt = "Open"
 
         if panel.runModal() == .OK, let url = panel.url {
-            let sessionID = sessionManager.createSession(projectPath: url.path)
+            let sessionID = sessionManager.createSession(
+                projectPath: url.path,
+                model: appSettings.defaultModel
+            )
             sessionManager.startSession(sessionID)
         }
-    }
-
-    private func showOpenProjectDialog() {
-        showNewSessionDialog()
     }
 
     private func restartActiveSession() {

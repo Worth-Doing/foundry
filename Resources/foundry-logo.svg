@@ -1,117 +1,271 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1a1a2e"/>
-      <stop offset="50%" style="stop-color:#16213e"/>
-      <stop offset="100%" style="stop-color:#0f3460"/>
+    <!-- Background: obsidian radial gradient with warm center -->
+    <radialGradient id="bg" cx="50%" cy="48%" r="65%" fx="50%" fy="45%">
+      <stop offset="0%" stop-color="#28262e"/>
+      <stop offset="40%" stop-color="#1c1a22"/>
+      <stop offset="75%" stop-color="#141318"/>
+      <stop offset="100%" stop-color="#0e0d12"/>
+    </radialGradient>
+
+    <!-- Forge glow: ambient warm light from the fissure -->
+    <radialGradient id="ambientGlow" cx="50%" cy="48%" r="35%">
+      <stop offset="0%" stop-color="#ff8a30" stop-opacity="0.18"/>
+      <stop offset="50%" stop-color="#ff6a10" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#ff5500" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Metallic gradient for the forge body -->
+    <linearGradient id="metalDark" x1="30%" y1="0%" x2="70%" y2="100%">
+      <stop offset="0%" stop-color="#3a3842"/>
+      <stop offset="30%" stop-color="#2e2c35"/>
+      <stop offset="70%" stop-color="#24222b"/>
+      <stop offset="100%" stop-color="#1e1c25"/>
     </linearGradient>
-    <linearGradient id="anvil" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#e0e0e0"/>
-      <stop offset="40%" style="stop-color:#b0b0b0"/>
-      <stop offset="100%" style="stop-color:#808080"/>
+
+    <!-- Edge highlight (top-left light source) -->
+    <linearGradient id="edgeHighlight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.03"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.1"/>
     </linearGradient>
-    <linearGradient id="spark1" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#ff6b35"/>
-      <stop offset="50%" style="stop-color:#ff9f1c"/>
-      <stop offset="100%" style="stop-color:#ffce54"/>
+
+    <!-- Fissure glow gradients -->
+    <linearGradient id="fissureCore" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fff5e0"/>
+      <stop offset="40%" stop-color="#ffe8c0"/>
+      <stop offset="100%" stop-color="#ffd090"/>
     </linearGradient>
-    <linearGradient id="spark2" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#e94560"/>
-      <stop offset="100%" style="stop-color:#ff6b35"/>
+
+    <linearGradient id="fissureMid" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffb050"/>
+      <stop offset="50%" stop-color="#ff8a20"/>
+      <stop offset="100%" stop-color="#ff6500"/>
     </linearGradient>
-    <linearGradient id="hammer" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#c0c0c0"/>
-      <stop offset="100%" style="stop-color:#909090"/>
+
+    <linearGradient id="fissureOuter" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ff6000"/>
+      <stop offset="100%" stop-color="#cc3800"/>
     </linearGradient>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="8" result="blur"/>
+
+    <!-- Cursor glow -->
+    <linearGradient id="cursorGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#ffcc70" stop-opacity="0.9"/>
+      <stop offset="50%" stop-color="#ffaa40" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#ff8820" stop-opacity="0.8"/>
+    </linearGradient>
+
+    <!-- Filters -->
+    <filter id="glowWide" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="30" result="blur"/>
       <feComposite in="SourceGraphic" in2="blur" operator="over"/>
     </filter>
-    <filter id="sparkGlow">
+    <filter id="glowMid" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="glowTight" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="glowSoft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="20"/>
+    </filter>
+    <filter id="innerShadow" x="-10%" y="-10%" width="120%" height="120%">
       <feGaussianBlur stdDeviation="4" result="blur"/>
       <feComposite in="SourceGraphic" in2="blur" operator="over"/>
     </filter>
+
+    <!-- Clip path for the rounded square -->
+    <clipPath id="iconClip">
+      <rect width="1024" height="1024" rx="220" ry="220"/>
+    </clipPath>
   </defs>
 
-  <!-- Background rounded square -->
+  <!-- ==================== -->
+  <!-- BASE ROUNDED SQUARE  -->
+  <!-- ==================== -->
   <rect width="1024" height="1024" rx="220" ry="220" fill="url(#bg)"/>
 
-  <!-- Subtle grid pattern -->
-  <g opacity="0.04">
-    <line x1="256" y1="0" x2="256" y2="1024" stroke="white" stroke-width="1"/>
-    <line x1="512" y1="0" x2="512" y2="1024" stroke="white" stroke-width="1"/>
-    <line x1="768" y1="0" x2="768" y2="1024" stroke="white" stroke-width="1"/>
-    <line x1="0" y1="256" x2="1024" y2="256" stroke="white" stroke-width="1"/>
-    <line x1="0" y1="512" x2="1024" y2="512" stroke="white" stroke-width="1"/>
-    <line x1="0" y1="768" x2="1024" y2="768" stroke="white" stroke-width="1"/>
+  <!-- Subtle surface texture: fine diagonal lines -->
+  <g clip-path="url(#iconClip)" opacity="0.025">
+    <line x1="0" y1="0" x2="1024" y2="1024" stroke="white" stroke-width="0.5"/>
+    <line x1="100" y1="0" x2="1124" y2="1024" stroke="white" stroke-width="0.5"/>
+    <line x1="200" y1="0" x2="1224" y2="1024" stroke="white" stroke-width="0.5"/>
+    <line x1="300" y1="0" x2="1324" y2="1024" stroke="white" stroke-width="0.5"/>
+    <line x1="400" y1="0" x2="1424" y2="1024" stroke="white" stroke-width="0.5"/>
+    <line x1="500" y1="0" x2="1524" y2="1024" stroke="white" stroke-width="0.5"/>
+    <line x1="600" y1="0" x2="1624" y2="1024" stroke="white" stroke-width="0.5"/>
+    <line x1="-100" y1="0" x2="924" y2="1024" stroke="white" stroke-width="0.5"/>
+    <line x1="-200" y1="0" x2="824" y2="1024" stroke="white" stroke-width="0.5"/>
+    <line x1="-300" y1="0" x2="724" y2="1024" stroke="white" stroke-width="0.5"/>
+    <line x1="-400" y1="0" x2="624" y2="1024" stroke="white" stroke-width="0.5"/>
+    <line x1="-500" y1="0" x2="524" y2="1024" stroke="white" stroke-width="0.5"/>
+    <line x1="-600" y1="0" x2="424" y2="1024" stroke="white" stroke-width="0.5"/>
   </g>
 
-  <!-- Anvil body -->
-  <g transform="translate(512, 560)">
-    <!-- Anvil base -->
-    <path d="M-200,100 L-160,100 L-140,60 L140,60 L160,100 L200,100 L200,140 L-200,140 Z"
-          fill="url(#anvil)" stroke="#666" stroke-width="3"/>
-    <!-- Anvil top surface -->
-    <path d="M-180,60 L-140,60 L-160,-10 L-220,-10 L-240,20 L-200,60 Z"
-          fill="url(#anvil)" stroke="#666" stroke-width="3"/>
-    <path d="M-160,-10 L200,-10 L200,60 L-140,60 Z"
-          fill="url(#anvil)" stroke="#666" stroke-width="3"/>
-    <!-- Anvil horn -->
-    <path d="M200,-10 L280,-10 Q320,-10 320,10 L320,20 Q320,60 280,60 L200,60 Z"
-          fill="url(#anvil)" stroke="#666" stroke-width="3"/>
-    <!-- Highlight on top -->
-    <path d="M-150,-10 L190,-10 L190,5 L-150,5 Z" fill="white" opacity="0.15"/>
+  <!-- Ambient warm glow behind everything -->
+  <rect width="1024" height="1024" rx="220" ry="220" fill="url(#ambientGlow)" clip-path="url(#iconClip)"/>
+
+  <!-- ========================= -->
+  <!-- CENTRAL FORGE FORM        -->
+  <!-- Abstract anvil/shield      -->
+  <!-- ========================= -->
+  <g transform="translate(512, 480)">
+    <!-- Forge body: abstract geometric form -->
+    <!-- A shield/crucible shape — wide top, tapering bottom -->
+    <path d="
+      M-195,-220
+      L 195,-220
+      Q 220,-220  230,-195
+      L 230, 80
+      Q 230, 120  200, 155
+      L  40, 260
+      Q  10, 280  0, 280
+      Q -10, 280 -40, 260
+      L-200, 155
+      Q-230, 120 -230, 80
+      L-230,-195
+      Q-220,-220 -195,-220
+      Z
+    " fill="url(#metalDark)" stroke="none"/>
+
+    <!-- Metallic edge highlight (top-left bevel) -->
+    <path d="
+      M-195,-220
+      L 195,-220
+      Q 220,-220  230,-195
+      L 230, 80
+      Q 230, 120  200, 155
+      L  40, 260
+      Q  10, 280  0, 280
+      Q -10, 280 -40, 260
+      L-200, 155
+      Q-230, 120 -230, 80
+      L-230,-195
+      Q-220,-220 -195,-220
+      Z
+    " fill="url(#edgeHighlight)" stroke="none"/>
+
+    <!-- Top edge bevel highlight -->
+    <path d="
+      M-185,-220  L 185,-220  Q 210,-220  220,-200  L 220,-195
+      L-220,-195  Q-210,-220  -185,-220 Z
+    " fill="white" opacity="0.06"/>
+
+    <!-- Subtle inner border -->
+    <path d="
+      M-195,-220
+      L 195,-220
+      Q 220,-220  230,-195
+      L 230, 80
+      Q 230, 120  200, 155
+      L  40, 260
+      Q  10, 280  0, 280
+      Q -10, 280 -40, 260
+      L-200, 155
+      Q-230, 120 -230, 80
+      L-230,-195
+      Q-220,-220 -195,-220
+      Z
+    " fill="none" stroke="white" stroke-opacity="0.04" stroke-width="2"/>
   </g>
 
-  <!-- Hammer -->
-  <g transform="translate(380, 320) rotate(-30, 60, 100)">
-    <!-- Handle -->
-    <rect x="50" y="80" width="16" height="180" rx="4" fill="#8B6914" stroke="#6B4F12" stroke-width="2"/>
-    <!-- Head -->
-    <rect x="10" y="50" width="100" height="45" rx="8" fill="url(#hammer)" stroke="#666" stroke-width="3"/>
-    <!-- Head highlight -->
-    <rect x="15" y="55" width="90" height="10" rx="3" fill="white" opacity="0.2"/>
+  <!-- ========================= -->
+  <!-- THE LUMINOUS FISSURE      -->
+  <!-- > shaped crack + cursor   -->
+  <!-- ========================= -->
+
+  <!-- Layer 1: Wide ambient glow (largest, most diffuse) -->
+  <path d="M370,310 L560,480 L370,650"
+        stroke="#ff5500" stroke-width="50" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"
+        filter="url(#glowSoft)" opacity="0.35"
+        clip-path="url(#iconClip)"/>
+
+  <!-- Layer 2: Medium glow -->
+  <path d="M370,310 L560,480 L370,650"
+        stroke="#ff7720" stroke-width="28" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"
+        filter="url(#glowWide)" opacity="0.5"/>
+
+  <!-- Layer 3: Bright glow -->
+  <path d="M370,310 L560,480 L370,650"
+        stroke="url(#fissureMid)" stroke-width="14" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"
+        filter="url(#glowMid)" opacity="0.7"/>
+
+  <!-- Layer 4: Hot inner glow -->
+  <path d="M370,310 L560,480 L370,650"
+        stroke="#ffcc66" stroke-width="7" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"
+        filter="url(#glowTight)" opacity="0.85"/>
+
+  <!-- Layer 5: White-hot core -->
+  <path d="M370,310 L560,480 L370,650"
+        stroke="url(#fissureCore)" stroke-width="3.5" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- ========================= -->
+  <!-- TERMINAL CURSOR BAR       -->
+  <!-- ========================= -->
+
+  <!-- Cursor glow (wide) -->
+  <rect x="600" y="415" width="8" height="130" rx="4"
+        fill="#ff8830" opacity="0.3"
+        filter="url(#glowSoft)"/>
+
+  <!-- Cursor glow (medium) -->
+  <rect x="603" y="420" width="6" height="120" rx="3"
+        fill="#ffaa40" opacity="0.5"
+        filter="url(#glowMid)"/>
+
+  <!-- Cursor core -->
+  <rect x="605" y="425" width="4" height="110" rx="2"
+        fill="url(#cursorGrad)" opacity="0.9"/>
+
+  <!-- Cursor white-hot center line -->
+  <rect x="606.5" y="430" width="1.5" height="100" rx="0.75"
+        fill="#fff5e0" opacity="0.7"/>
+
+  <!-- ========================= -->
+  <!-- MOLTEN PARTICLES / SPARKS -->
+  <!-- ========================= -->
+  <g clip-path="url(#iconClip)">
+    <!-- Floating embers rising from the fissure -->
+    <circle cx="420" cy="290" r="3" fill="#ffcc60" opacity="0.5" filter="url(#glowTight)"/>
+    <circle cx="480" cy="260" r="2.5" fill="#ff9930" opacity="0.45" filter="url(#glowTight)"/>
+    <circle cx="540" cy="280" r="2" fill="#ffaa40" opacity="0.4" filter="url(#glowTight)"/>
+    <circle cx="395" cy="250" r="1.8" fill="#ffbb50" opacity="0.35" filter="url(#glowTight)"/>
+    <circle cx="505" cy="235" r="2.2" fill="#ff8820" opacity="0.3" filter="url(#glowTight)"/>
+    <circle cx="455" cy="220" r="1.5" fill="#ffcc60" opacity="0.25" filter="url(#glowTight)"/>
+    <circle cx="565" cy="310" r="1.5" fill="#ff9930" opacity="0.3" filter="url(#glowTight)"/>
+
+    <!-- Tiny sparks near the vertex of > -->
+    <circle cx="555" cy="465" r="2.5" fill="#ffe8a0" opacity="0.6" filter="url(#glowTight)"/>
+    <circle cx="575" cy="490" r="2" fill="#ffcc60" opacity="0.5" filter="url(#glowTight)"/>
+    <circle cx="548" cy="500" r="1.8" fill="#ffbb50" opacity="0.4" filter="url(#glowTight)"/>
   </g>
 
-  <!-- Sparks -->
-  <g filter="url(#sparkGlow)">
-    <!-- Main sparks -->
-    <circle cx="420" cy="460" r="6" fill="#ffce54" opacity="0.9"/>
-    <circle cx="380" cy="430" r="4" fill="#ff9f1c" opacity="0.8"/>
-    <circle cx="450" cy="440" r="5" fill="#ff6b35" opacity="0.85"/>
-    <circle cx="400" cy="410" r="3" fill="#ffce54" opacity="0.7"/>
-    <circle cx="460" cy="470" r="4" fill="#ff9f1c" opacity="0.75"/>
-    <circle cx="350" cy="450" r="3.5" fill="#ffce54" opacity="0.65"/>
+  <!-- ========================= -->
+  <!-- BOTTOM REFLECTION LINE    -->
+  <!-- ========================= -->
 
-    <!-- Spark trails -->
-    <path d="M420,460 Q400,400 370,370" stroke="url(#spark1)" stroke-width="2.5" fill="none" opacity="0.6" stroke-linecap="round"/>
-    <path d="M450,440 Q470,390 490,360" stroke="url(#spark1)" stroke-width="2" fill="none" opacity="0.5" stroke-linecap="round"/>
-    <path d="M380,430 Q350,380 330,360" stroke="url(#spark2)" stroke-width="2" fill="none" opacity="0.5" stroke-linecap="round"/>
-    <path d="M400,410 Q380,360 400,320" stroke="url(#spark1)" stroke-width="1.5" fill="none" opacity="0.4" stroke-linecap="round"/>
-
-    <!-- Small flying sparks -->
-    <circle cx="370" cy="370" r="2.5" fill="#ffce54" opacity="0.7"/>
-    <circle cx="490" cy="360" r="2" fill="#ff9f1c" opacity="0.6"/>
-    <circle cx="330" cy="360" r="2" fill="#ff6b35" opacity="0.6"/>
-    <circle cx="400" cy="320" r="2" fill="#ffce54" opacity="0.5"/>
-    <circle cx="310" cy="390" r="1.5" fill="#ff9f1c" opacity="0.4"/>
-    <circle cx="500" cy="400" r="1.5" fill="#ffce54" opacity="0.4"/>
+  <!-- Subtle bottom edge light (reflected glow from the fissure) -->
+  <g clip-path="url(#iconClip)">
+    <ellipse cx="480" cy="790" rx="180" ry="8"
+             fill="#ff7720" opacity="0.04"
+             filter="url(#glowSoft)"/>
   </g>
 
-  <!-- Code brackets - left -->
-  <g opacity="0.15">
-    <text x="140" y="520" font-family="SF Mono, Menlo, monospace" font-size="120" font-weight="bold" fill="white" transform="rotate(-10, 140, 520)">{</text>
-    <text x="780" y="520" font-family="SF Mono, Menlo, monospace" font-size="120" font-weight="bold" fill="white" transform="rotate(10, 780, 520)">}</text>
-  </g>
+  <!-- ========================= -->
+  <!-- OUTER RING BEVEL          -->
+  <!-- macOS-style edge          -->
+  <!-- ========================= -->
+  <rect width="1024" height="1024" rx="220" ry="220"
+        fill="none" stroke="white" stroke-opacity="0.04" stroke-width="1.5"/>
 
-  <!-- Terminal cursor blink indicator -->
-  <rect x="620" y="510" width="3" height="30" rx="1.5" fill="#4ade80" opacity="0.7"/>
-
-  <!-- "FOUNDRY" text -->
-  <text x="512" y="820" text-anchor="middle" font-family="SF Pro Display, Helvetica Neue, Arial, sans-serif"
-        font-size="88" font-weight="800" letter-spacing="12" fill="white" opacity="0.95">FOUNDRY</text>
-
-  <!-- Subtle tagline -->
-  <text x="512" y="868" text-anchor="middle" font-family="SF Pro Display, Helvetica Neue, Arial, sans-serif"
-        font-size="28" font-weight="400" letter-spacing="8" fill="white" opacity="0.35">FORGE YOUR CODE</text>
+  <!-- Inner shadow at bottom for depth -->
+  <rect x="3" y="3" width="1018" height="1018" rx="218" ry="218"
+        fill="none" stroke="black" stroke-opacity="0.2" stroke-width="1"/>
 </svg>

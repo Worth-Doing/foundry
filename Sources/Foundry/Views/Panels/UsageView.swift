@@ -3,6 +3,7 @@ import SwiftUI
 struct UsageView: View {
     @EnvironmentObject var sessionManager: SessionManager
     @State private var selectedPeriod: TimePeriod = .all
+    @Environment(\.colorScheme) private var colorScheme
 
     enum TimePeriod: String, CaseIterable {
         case today = "Today"
@@ -257,7 +258,7 @@ struct UsageView: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(.quaternary.opacity(0.3))
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
         }
     }
 
@@ -278,6 +279,7 @@ struct SummaryCard: View {
     let value: String
     let icon: String
     let color: Color
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 8) {
@@ -294,7 +296,11 @@ struct SummaryCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(color.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+        .background(color.opacity(colorScheme == .light ? 0.06 : 0.08), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(color.opacity(0.1), lineWidth: 1)
+        )
     }
 }
 
@@ -343,7 +349,7 @@ struct TokenBar: View {
             GeometryReader { geo in
                 let width = max(2, geo.size.width * CGFloat(count) / CGFloat(max(maxCount, 1)))
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(color)
+                    .fill(color.opacity(0.7))
                     .frame(width: width)
             }
             .frame(height: 16)

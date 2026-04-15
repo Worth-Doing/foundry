@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="#installation"><img src="https://img.shields.io/badge/Platform-macOS%2014%2B-blue?style=for-the-badge&logo=apple&logoColor=white" alt="Platform"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Language-Swift%206.3-F05138?style=for-the-badge&logo=swift&logoColor=white" alt="Swift"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Language-Swift%206.0-F05138?style=for-the-badge&logo=swift&logoColor=white" alt="Swift"></a>
   <a href="#"><img src="https://img.shields.io/badge/UI-SwiftUI-006AFF?style=for-the-badge&logo=swift&logoColor=white" alt="SwiftUI"></a>
   <a href="#"><img src="https://img.shields.io/badge/License-Proprietary-lightgrey?style=for-the-badge" alt="License"></a>
   <a href="#"><img src="https://img.shields.io/badge/Apple-Notarized-brightgreen?style=for-the-badge&logo=apple&logoColor=white" alt="Notarized"></a>
@@ -22,9 +22,10 @@
 </p>
 
 <p align="center">
+  <a href="#"><img src="https://img.shields.io/badge/Version-2.0.0-blueviolet?style=flat-square" alt="Version"></a>
   <a href="#"><img src="https://img.shields.io/badge/Architecture-arm64-informational?style=flat-square" alt="Arch"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Lines%20of%20Code-6%2C500%2B-blueviolet?style=flat-square" alt="LOC"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Swift%20Files-27-orange?style=flat-square" alt="Files"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Lines%20of%20Code-7%2C000%2B-blueviolet?style=flat-square" alt="LOC"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Swift%20Files-28-orange?style=flat-square" alt="Files"></a>
   <a href="#"><img src="https://img.shields.io/badge/Build%20System-SPM-red?style=flat-square" alt="SPM"></a>
   <a href="#"><img src="https://img.shields.io/badge/Made%20with-Claude%20Code-8A2BE2?style=flat-square" alt="Claude Code"></a>
 </p>
@@ -40,12 +41,37 @@
 ## Download
 
 <p align="center">
-  <a href="https://github.com/Worth-Doing/foundry/releases/download/v1.0.0/Foundry-1.0.0.dmg">
-    <img src="https://img.shields.io/badge/⬇%20Download-Foundry%201.0.0%20DMG-blue?style=for-the-badge&logo=apple&logoColor=white" alt="Download DMG">
+  <a href="https://github.com/Worth-Doing/foundry/releases/download/v2.0.0/Foundry-2.0.0.dmg">
+    <img src="https://img.shields.io/badge/Download-Foundry%202.0.0%20DMG-blue?style=for-the-badge&logo=apple&logoColor=white" alt="Download DMG">
   </a>
 </p>
 
-> **[📥 Foundry-1.0.0.dmg](https://github.com/Worth-Doing/foundry/releases/download/v1.0.0/Foundry-1.0.0.dmg)** — 2.5 MB | Apple Notarized | Code Signed | macOS 14+
+> **[Foundry-2.0.0.dmg](https://github.com/Worth-Doing/foundry/releases/download/v2.0.0/Foundry-2.0.0.dmg)** — 3.5 MB | Apple Notarized | Code Signed | macOS 14+
+
+---
+
+## What's New in 2.0.0
+
+### Light Theme by Default
+
+Foundry 2.0 ships with a **clean light theme** as the default appearance. Every view has been carefully adapted for light mode — from chat bubbles with subtle borders and shadows to code blocks with proper contrast, diff views with readable green/red backgrounds, and a polished command palette. Switch between System, Light, and Dark at any time in Settings.
+
+### New Forge Icon
+
+A completely redesigned app icon: an obsidian shield with a glowing amber `>` fissure and terminal cursor — the mark of a forge where code is built.
+
+### Persistent Settings
+
+All preferences now persist across launches via `AppSettings` — theme, default model, panel visibility, permission mode, and more. No more resetting on restart.
+
+### Upgraded UI
+
+- **Model badges** in the sidebar show Opus (purple), Sonnet (blue), or Haiku (green) per session
+- **Recent Projects** in the welcome view for quick-launch
+- **Session context menu** with Rename, Duplicate, Copy Path, Reveal in Finder
+- **Panel toggles** persisted — Terminal and File panels remember their state
+- **Keyboard shortcuts** for panels: `Cmd+Shift+T` (terminal), `Cmd+Shift+F` (files)
+- **Better status bar** with color-coded model names and cleaner layout
 
 ---
 
@@ -76,34 +102,23 @@ Foundry gives you:
 
 | Feature | Description |
 |---------|-------------|
-| 🏗️ **Structured Timeline** | Every action visualized — messages, tool calls, file edits, agent spawns |
-| 💬 **Chat Interface** | Modern chat bubbles with Enter-to-send, Markdown rendering, code blocks |
-| 📊 **Usage Analytics** | Real-time token counts, cost breakdown per session and total |
-| 🔌 **MCP Management** | View, add, and remove MCP servers directly from the UI |
-| 🤖 **Agent Viewer** | See all configured agents, add custom ones to settings.json |
-| ⚡ **Skills Browser** | Browse all slash commands and marketplace plugins, install with one click |
-| 📁 **File Tracking** | Monitor file changes with diff visualization |
-| 🔄 **Multi-Session** | Run parallel Claude Code sessions, switch instantly |
-| 🕐 **Full History** | Every Claude Code session ever run on your machine, loaded automatically |
-
----
-
-## Screenshots
-
-### Session Timeline with Chat Bubbles
-The main view displays every event from your Claude Code session in a structured, scrollable timeline with chat-style message bubbles, collapsible tool calls, and inline file operation indicators.
-
-### Command Palette
-Press `⌘K` to open the command palette with access to every Claude Code slash command — `/commit`, `/review`, `/security-review`, `/simplify`, `/model`, `/memory`, and more.
-
-### Usage & Costs Dashboard
-Detailed token usage breakdown with visual bar charts, per-session cost table, and filterable time periods.
+| **Structured Timeline** | Every action visualized — messages, tool calls, file edits, agent spawns |
+| **Chat Interface** | Modern chat bubbles with Enter-to-send, Markdown rendering, code blocks |
+| **Usage Analytics** | Real-time token counts, cost breakdown per session and total |
+| **MCP Management** | View, add, and remove MCP servers directly from the UI |
+| **Agent Viewer** | See all configured agents, add custom ones to settings.json |
+| **Skills Browser** | Browse all slash commands and marketplace plugins, install with one click |
+| **File Tracking** | Monitor file changes with diff visualization |
+| **Multi-Session** | Run parallel Claude Code sessions, switch instantly |
+| **Full History** | Every Claude Code session ever run on your machine, loaded automatically |
+| **Light & Dark Themes** | Premium light theme by default, with system and dark options |
+| **Persistent Settings** | All preferences survive restarts — theme, model, panels, permissions |
 
 ---
 
 ## Features
 
-### 🖥️ Native macOS Experience
+### Native macOS Experience
 
 <table>
 <tr>
@@ -113,7 +128,7 @@ Detailed token usage breakdown with visual bar charts, per-session cost table, a
 - No Electron, no web wrappers
 - Hardware-accelerated rendering
 - Native macOS controls and behaviors
-- Respects system appearance (Light/Dark mode)
+- Light theme by default, Dark and System modes available
 - Full keyboard navigation
 - Retina display optimized
 
@@ -125,8 +140,8 @@ Detailed token usage breakdown with visual bar charts, per-session cost table, a
 - Collapsible sidebar, file panel, terminal panel
 - Global keyboard shortcuts
 - Menu bar integration
-- Settings window
-- App icon in Dock
+- Settings window with persistent preferences
+- Forge-themed app icon in Dock
 
 </td>
 </tr>
@@ -134,7 +149,7 @@ Detailed token usage breakdown with visual bar charts, per-session cost table, a
 
 ---
 
-### 💬 Modern Chat Interface
+### Modern Chat Interface
 
 The conversation view is designed for productivity, not novelty:
 
@@ -151,10 +166,11 @@ The conversation view is designed for productivity, not novelty:
 - **Animated typing indicator** (bouncing dots) when Claude is working
 - **Processing bar** with real-time status and Stop button
 - **Hover timestamps** on all messages
+- **Light-mode optimized** — subtle borders and proper contrast on all bubble types
 
 ---
 
-### 📊 Complete Claude Code Session History
+### Complete Claude Code Session History
 
 Foundry reads **every session** directly from Claude Code's data files:
 
@@ -164,18 +180,18 @@ Foundry reads **every session** directly from Claude Code's data files:
 ```
 
 **What gets loaded:**
-- ✅ All sessions from all projects on the machine
-- ✅ User messages and prompts
-- ✅ Assistant responses with full Markdown
-- ✅ Thinking blocks (collapsible)
-- ✅ Tool use — Bash, Read, Write, Edit, Grep, Glob, Agent, etc.
-- ✅ Tool results with collapsible output
-- ✅ File operations (read/write/edit) with paths
-- ✅ Search operations with patterns
-- ✅ Sub-agent spawns with type and description
-- ✅ Error events
-- ✅ System events and permission mode changes
-- ✅ Token usage per assistant message (input, output, cache read, cache write)
+- All sessions from all projects on the machine
+- User messages and prompts
+- Assistant responses with full Markdown
+- Thinking blocks (collapsible)
+- Tool use — Bash, Read, Write, Edit, Grep, Glob, Agent, etc.
+- Tool results with collapsible output
+- File operations (read/write/edit) with paths
+- Search operations with patterns
+- Sub-agent spawns with type and description
+- Error events
+- System events and permission mode changes
+- Token usage per assistant message (input, output, cache read, cache write)
 
 **Cost calculation** is computed automatically from token usage with model-specific pricing:
 
@@ -187,7 +203,7 @@ Foundry reads **every session** directly from Claude Code's data files:
 
 ---
 
-### 🔄 Live Claude Code Integration
+### Live Claude Code Integration
 
 Send messages directly from Foundry — Claude Code runs in the background:
 
@@ -197,7 +213,7 @@ claude -p "<message>" --output-format stream-json --verbose --resume <session-id
 
 **How it works:**
 1. You type a message and press Enter
-2. Foundry spawns a Claude Code process with `--print --output-format stream-json --verbose`
+2. Foundry spawns a Claude Code process with `--output-format stream-json --verbose`
 3. Stream-JSON events are parsed in real time
 4. Events appear in the timeline with proper formatting
 5. Session ID is captured for `--resume` on next message
@@ -205,23 +221,23 @@ claude -p "<message>" --output-format stream-json --verbose --resume <session-id
 
 ---
 
-### ⌘K Command Palette
+### Command Palette
 
-Every Claude Code slash command is accessible through the command palette:
+Every Claude Code slash command is accessible through the command palette (`Cmd+K`):
 
 | Category | Commands |
 |----------|----------|
-| **Session** | `/clear` · `/compact` · `/resume` · `/status` |
-| **Code** | `/review` · `/simplify` · `/security-review` · `/init` |
-| **Git** | `/commit` · `/pr-comments` |
-| **Configuration** | `/config` · `/permissions` · `/model` · `/memory` · `/vim` · `/terminal-setup` |
-| **Account** | `/login` · `/logout` |
-| **Analysis** | `/cost` · `/insights` |
-| **System** | `/help` · `/doctor` · `/bug` · `/schedule` · `/loop` |
+| **Session** | `/clear` `/compact` `/resume` `/status` |
+| **Code** | `/review` `/simplify` `/security-review` `/init` |
+| **Git** | `/commit` `/pr-comments` |
+| **Configuration** | `/config` `/permissions` `/model` `/memory` `/vim` `/terminal-setup` |
+| **Account** | `/login` `/logout` |
+| **Analysis** | `/cost` `/insights` |
+| **System** | `/help` `/doctor` `/bug` `/schedule` `/loop` |
 
 ---
 
-### ⚡ Skills Management
+### Skills Management
 
 Browse and install Claude Code skills and plugins:
 
@@ -232,7 +248,7 @@ Browse and install Claude Code skills and plugins:
 
 ---
 
-### 🤖 Agents Management
+### Agents Management
 
 View and configure Claude Code agents:
 
@@ -242,7 +258,7 @@ View and configure Claude Code agents:
 
 ---
 
-### 🔌 MCP Server Management
+### MCP Server Management
 
 Full MCP (Model Context Protocol) server lifecycle management:
 
@@ -253,7 +269,7 @@ Full MCP (Model Context Protocol) server lifecycle management:
 
 ---
 
-### 📈 Usage & Costs Dashboard
+### Usage & Costs Dashboard
 
 Comprehensive analytics for your Claude Code usage:
 
@@ -266,21 +282,19 @@ Comprehensive analytics for your Claude Code usage:
 
 ---
 
-### 🗂️ Additional Panels
+### Additional Panels
 
 | Panel | Description |
 |-------|-------------|
 | **File Changes** | Track all file modifications with type indicators (created/modified/deleted/renamed) |
 | **Terminal Output** | Raw stdout/stderr/system logs with source filtering and search |
 | **Diff View** | Side-by-side or unified diff visualization with line numbers |
-| **Status Bar** | Model, tokens in/out, cache stats, cost, file changes, event count, project path |
-| **Settings** | General, Models, Permissions, Memory, Advanced, About tabs |
+| **Status Bar** | Color-coded model name, tokens in/out, cache stats, cost, file changes, project path |
+| **Settings** | General, Models, Permissions, Memory, Advanced, About — all persistent |
 
 ---
 
 ## Architecture
-
-Foundry follows a clean modular architecture with 9 distinct modules:
 
 ```
 Sources/Foundry/
@@ -292,6 +306,7 @@ Sources/Foundry/
 │   └── ClaudeCommand.swift             # Slash command registry with categories
 │
 ├── Services/
+│   ├── AppSettings.swift               # Persistent settings (UserDefaults) with light theme default
 │   ├── ClaudeHistoryLoader.swift       # Discovers & parses all sessions from ~/.claude/
 │   ├── ClaudeProcessController.swift   # Process spawning, stream-json I/O, lifecycle
 │   ├── SessionManager.swift            # Multi-session state management (ObservableObject)
@@ -301,19 +316,19 @@ Sources/Foundry/
 │   └── DiffEngine.swift                # LCS-based line diff + unified diff parser
 │
 └── Views/
-    ├── MainView.swift                  # Root layout with NavigationSplitView
-    ├── MarkdownView.swift              # Full Markdown renderer with code blocks
+    ├── MainView.swift                  # Root layout with NavigationSplitView + WelcomeView
+    ├── MarkdownView.swift              # Full Markdown renderer with theme-adaptive code blocks
     ├── PromptView.swift                # Chat input with NSTextView (Enter to send)
-    ├── CommandPaletteView.swift        # ⌘K command palette
+    ├── CommandPaletteView.swift        # Cmd+K command palette
     ├── OnboardingView.swift            # Claude not found error + install instructions
-    ├── StatusBarView.swift             # Bottom status bar
-    ├── SettingsView.swift              # Tabbed settings window
+    ├── StatusBarView.swift             # Bottom status bar with color-coded model
+    ├── SettingsView.swift              # Tabbed settings window (persistent)
     ├── TerminalView.swift              # Raw log output with filtering
     ├── Sidebar/
-    │   └── SidebarView.swift           # Session list with cost, status, search
+    │   └── SidebarView.swift           # Session list with model badges, cost, search
     ├── Timeline/
     │   ├── TimelineView.swift          # Scrollable event timeline with filters
-    │   └── TimelineEventView.swift     # Chat bubbles, tool cards, file pills
+    │   └── TimelineEventView.swift     # Theme-aware chat bubbles, tool cards, file pills
     └── Panels/
         ├── SkillsView.swift            # Skills browser with install
         ├── AgentsView.swift            # Agent viewer with custom agent creation
@@ -328,11 +343,13 @@ Sources/Foundry/
 |----------|-----------|
 | **Swift Package Manager** | CLI-friendly builds without Xcode dependency |
 | **ObservableObject** | Compatible with Swift 5 language mode for broad stability |
+| **UserDefaults for settings** | Reliable persistence without custom file management |
+| **Light theme default** | Cleaner visual baseline, with Dark and System options |
 | **Process per message** | Uses `--resume` for multi-turn; avoids long-lived process issues |
-| **JSONL scanning** | `~/.claude/projects/` is the source of truth, not `~/.claude/sessions/` |
-| **Python dict parsing** | Claude Code stores messages as Python repr strings in JSONL |
+| **JSONL scanning** | `~/.claude/projects/` is the source of truth |
 | **NSTextView wrapper** | SwiftUI's TextEditor doesn't support Enter-to-send |
 | **Custom Markdown parser** | Apple's `AttributedString(markdown:)` doesn't handle code blocks as views |
+| **Theme-adaptive colors** | All views use `@Environment(\.colorScheme)` for proper light/dark rendering |
 | **Hardened runtime** | Required for notarization; entitlements allow JIT and library loading |
 
 ---
@@ -352,20 +369,20 @@ Sources/Foundry/
 
 ### Option 1: Download DMG (Recommended)
 
-1. **[Download Foundry-1.0.0.dmg](Foundry-1.0.0.dmg)**
+1. **[Download Foundry-2.0.0.dmg](https://github.com/Worth-Doing/foundry/releases/download/v2.0.0/Foundry-2.0.0.dmg)**
 2. Open the DMG
 3. Drag **Foundry** to **Applications**
 4. Launch from Applications or Spotlight
 
-> ✅ Apple Notarized — no Gatekeeper warnings  
-> ✅ Code Signed with Developer ID  
-> ✅ Hardened Runtime enabled
+> Apple Notarized — no Gatekeeper warnings  
+> Code Signed with Developer ID  
+> Hardened Runtime enabled
 
 ### Option 2: Build from Source
 
 ```bash
 # Clone the repository
-git clone <repo-url>
+git clone https://github.com/Worth-Doing/foundry.git
 cd foundry
 
 # Build (debug)
@@ -395,39 +412,28 @@ swift build -c release
 1. Foundry checks if Claude Code is installed
 2. If not found, an onboarding screen shows installation instructions
 3. If found, all existing Claude Code sessions are loaded automatically
+4. The app opens in light theme by default (changeable in Settings)
 
 ### Browsing History
 
 - All sessions from `~/.claude/projects/` appear in the sidebar
 - Click any session to load its full conversation timeline
 - Events are loaded lazily (only when selected) for performance
-- Costs are shown next to each session
+- Costs and model badges are shown next to each session
 
 ### Starting a New Session
 
-1. Click **+** in the sidebar or `⌘N`
+1. Click **+** in the sidebar or `Cmd+N`
 2. Select a project directory
 3. Type a message and press **Enter**
 4. Claude Code runs in the background and results stream into the timeline
 
 ### Using the Command Palette
 
-1. Press `⌘K` to open the command palette
+1. Press `Cmd+K` to open the command palette
 2. Type to search (e.g., "commit", "review", "model")
 3. Press **Enter** to execute the selected command
 4. The command is sent to the active Claude Code session
-
-### Navigation Pages
-
-Use the sidebar navigation to switch between:
-
-| Page | Shortcut | Description |
-|------|----------|-------------|
-| **Sessions** | Default | Timeline, chat, file changes |
-| **Skills** | — | Browse and install skills/plugins |
-| **Agents** | — | View and add agents |
-| **MCP Servers** | — | Manage MCP server connections |
-| **Usage & Costs** | — | Analytics dashboard |
 
 ### Keyboard Shortcuts
 
@@ -435,12 +441,14 @@ Use the sidebar navigation to switch between:
 |----------|--------|
 | `Enter` | Send message |
 | `Shift+Enter` | New line in message |
-| `⌘K` | Command palette |
-| `⌘N` | New session |
-| `⌘O` | Open project |
-| `⌘.` | Stop active session |
-| `⌘⇧R` | Restart session |
-| `⌃⌘S` | Toggle sidebar |
+| `Cmd+K` | Command palette |
+| `Cmd+N` | New session |
+| `Cmd+O` | Open project |
+| `Cmd+.` | Stop active session |
+| `Cmd+Shift+R` | Restart session |
+| `Cmd+Shift+T` | Toggle terminal panel |
+| `Cmd+Shift+F` | Toggle file changes panel |
+| `Ctrl+Cmd+S` | Toggle sidebar |
 
 ---
 
@@ -448,15 +456,15 @@ Use the sidebar navigation to switch between:
 
 ### Settings
 
-Access via **Foundry → Settings** or the gear icon:
+Access via **Foundry > Settings** or the gear icon:
 
 | Tab | What it configures |
 |-----|-------------------|
-| **General** | Auto-save, raw output visibility, max log entries |
-| **Models** | Default model selection (Opus / Sonnet / Haiku) |
+| **General** | Theme (System/Light/Dark), auto-save, raw output, max log entries, panel visibility |
+| **Models** | Default model selection (Opus / Sonnet / Haiku) with capability descriptions |
 | **Permissions** | Permission mode (default, acceptEdits, plan, auto) |
 | **Memory** | Access Claude Code memory files in `~/.claude/` |
-| **Advanced** | Claude Code path, version, health check, data management |
+| **Advanced** | Claude Code path, version, health check, reset settings, data management |
 | **About** | Version info, credits |
 
 ---
@@ -465,49 +473,9 @@ Access via **Foundry → Settings** or the gear icon:
 
 - Foundry **reads** Claude Code's data files — it does **not** modify them
 - Session data is stored in `~/.claude/` (Claude Code's standard location)
-- Foundry's own settings are in `~/Library/Application Support/Foundry/`
+- Foundry's own settings are in `UserDefaults` (standard macOS preferences)
 - No data is sent to external servers (beyond Claude Code's own API calls)
 - All processing happens locally on your machine
-
----
-
-## Technical Details
-
-### How Session Discovery Works
-
-```
-~/.claude/
-├── projects/
-│   ├── -Users-you-Desktop-myproject/
-│   │   ├── session-uuid-1.jsonl          ← Full conversation log
-│   │   └── session-uuid-2.jsonl
-│   └── -Users-you-Desktop-another/
-│       └── session-uuid-3.jsonl
-└── sessions/                              ← Only tracks running sessions (unreliable)
-```
-
-Foundry scans **all `.jsonl` files** across all project directories to discover every session. Each line in a JSONL file is a JSON object with fields like:
-
-```json
-{"type": "user", "message": {"role": "user", "content": "..."}, "timestamp": "2026-04-14T..."}
-{"type": "assistant", "message": {"model": "claude-opus-4-6", "content": [...]}, "usage": {...}}
-```
-
-### How Claude Code Communication Works
-
-```
-┌──────────┐    stdin (prompt)     ┌──────────────┐
-│  Foundry  │ ──────────────────→ │  claude -p    │
-│  (SwiftUI)│ ←────────────────── │  --stream-json│
-└──────────┘    stdout (events)    └──────────────┘
-```
-
-Each message spawns a new `claude` process with:
-```bash
-claude -p "<message>" --output-format stream-json --verbose --model <model> --resume <session-id>
-```
-
-The `--resume` flag maintains conversation continuity across process invocations.
 
 ---
 
@@ -515,14 +483,14 @@ The `--resume` flag maintains conversation continuity across process invocations
 
 | Metric | Value |
 |--------|-------|
-| **Language** | Swift 6.3 |
+| **Version** | 2.0.0 |
+| **Language** | Swift 6.0 |
 | **Framework** | SwiftUI (100% native) |
-| **Lines of Code** | 6,500+ |
-| **Swift Files** | 27 |
-| **Modules** | 9 (Models, Services × 7, Views) |
+| **Lines of Code** | 7,000+ |
+| **Swift Files** | 28 |
 | **Build System** | Swift Package Manager |
 | **Binary Size** | ~3.5 MB (release, arm64) |
-| **DMG Size** | 2.5 MB |
+| **DMG Size** | 3.5 MB |
 | **Min macOS** | 14.0 (Sonoma) |
 | **Signing** | Developer ID + Hardened Runtime |
 | **Notarization** | Apple Notarized + Stapled |
@@ -536,13 +504,14 @@ The `--resume` flag maintains conversation continuity across process invocations
 ```
 foundry/
 ├── Package.swift                      # SPM package definition
-├── Sources/Foundry/                   # All source code
+├── Sources/Foundry/                   # All source code (28 Swift files)
 ├── Resources/                         # Logo SVG, PNG, .icns
 ├── Scripts/
 │   ├── build.sh                       # Quick debug/release build
-│   └── build-release.sh               # Full: build + sign + DMG + notarize
+│   ├── build-release.sh               # Full: build + sign + DMG + notarize
+│   └── svg-to-icns.swift              # Convert SVG icon to .icns with all sizes
 ├── Foundry.app/                       # Built app bundle
-├── Foundry-1.0.0.dmg                  # Distribution DMG
+├── Foundry-2.0.0.dmg                  # Distribution DMG
 └── Foundry.entitlements               # Hardened runtime entitlements
 ```
 
@@ -558,22 +527,28 @@ open Foundry.app
 
 # Full release with notarization
 ./Scripts/build-release.sh
+
+# Regenerate icon from SVG
+swift Scripts/svg-to-icns.swift
 ```
 
 ---
 
 ## Roadmap
 
+- [x] Light theme with persistent settings
+- [x] New forge-themed app icon
+- [x] Model badges and color-coded status
+- [x] Session renaming and duplication
+- [x] Recent projects quick-launch
+- [x] Panel state persistence
 - [ ] Real-time streaming (partial message rendering as they arrive)
 - [ ] File diff visualization with accept/reject actions
 - [ ] Session search across all history
 - [ ] Export session as Markdown
-- [ ] Custom themes and color schemes
-- [ ] Plugin marketplace integration
 - [ ] Session tagging and organization
 - [ ] Git integration (branch awareness, commit history)
 - [ ] Multiple windows support
-- [ ] Touch Bar support
 
 ---
 
@@ -590,5 +565,5 @@ Built entirely using **[Claude Code](https://docs.anthropic.com/en/docs/claude-c
 </p>
 
 <p align="center">
-  <sub>© 2026 WorthDoing AI. All rights reserved.</sub>
+  <sub>&copy; 2026 WorthDoing AI. All rights reserved.</sub>
 </p>
