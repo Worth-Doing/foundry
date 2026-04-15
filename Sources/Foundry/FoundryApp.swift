@@ -14,6 +14,7 @@ struct FoundryApp: App {
                 .frame(minWidth: 960, minHeight: 640)
                 .preferredColorScheme(appSettings.resolvedColorScheme)
                 .onAppear {
+                    sessionManager.appSettings = appSettings
                     sessionManager.checkClaudeAvailability()
                 }
         }
@@ -116,14 +117,7 @@ struct FoundryApp: App {
     }
 
     private func showNewSessionDialog() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.message = "Select a project directory for the new session"
-        panel.prompt = "Open"
-
-        if panel.runModal() == .OK, let url = panel.url {
+        if let url = Utilities.showOpenProjectPanel(message: "Select a project directory for the new session") {
             let sessionID = sessionManager.createSession(
                 projectPath: url.path,
                 model: appSettings.defaultModel

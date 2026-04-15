@@ -108,7 +108,7 @@ struct TimelineView: View {
     }
 
     private var timelineToolbar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Spacing.sm) {
             Picker("Filter", selection: $filterType) {
                 ForEach(EventTypeFilter.allCases, id: \.self) { filter in
                     Text(filter.rawValue).tag(filter)
@@ -117,7 +117,7 @@ struct TimelineView: View {
             .pickerStyle(.segmented)
             .frame(maxWidth: 350)
 
-            HStack(spacing: 6) {
+            HStack(spacing: Spacing.sm) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.tertiary)
                     .font(.caption)
@@ -135,9 +135,9 @@ struct TimelineView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, Spacing.sm)
             .padding(.vertical, 5)
-            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+            .glassBackground(cornerRadius: CornerRadius.sm, shadow: false)
             .frame(maxWidth: 200)
 
             Spacer()
@@ -145,9 +145,9 @@ struct TimelineView: View {
             Text("\(filteredEvents.count)")
                 .font(.system(.caption, design: .monospaced, weight: .medium))
                 .foregroundStyle(.tertiary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(.quaternary.opacity(0.3), in: Capsule())
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xxs)
+                .background(.ultraThinMaterial, in: Capsule())
 
             Toggle(isOn: $autoScroll) {
                 Image(systemName: "arrow.down.to.line")
@@ -156,21 +156,23 @@ struct TimelineView: View {
             .controlSize(.small)
             .help("Auto-scroll")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .floatingHeader()
     }
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Spacing.lg) {
             Spacer()
 
             ZStack {
                 Circle()
-                    .fill(Color.accentColor.opacity(0.08))
-                    .frame(width: 80, height: 80)
+                    .fill(GradientTokens.subtle)
+                    .frame(width: 88, height: 88)
+                    .shadow(color: Color.accentColor.opacity(0.1), radius: 20)
                 Image(systemName: "bubble.left.and.bubble.right")
-                    .font(.system(size: 32))
-                    .foregroundStyle(Color.accentColor.opacity(0.5))
+                    .font(.system(size: 34))
+                    .foregroundStyle(GradientTokens.accent)
             }
 
             Text("Start a conversation")
@@ -233,9 +235,9 @@ struct TypingIndicator: View {
                         .opacity(dotOpacity(for: i))
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(.horizontal, Spacing.lg)
+            .padding(.vertical, Spacing.lg)
+            .glassBackground(cornerRadius: CornerRadius.xl)
 
             Spacer()
         }

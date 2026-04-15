@@ -96,29 +96,33 @@ struct MainView: View {
                 }
                 .frame(minWidth: 400)
 
-                // Right: File changes panel
+                // Right: File changes panel (animated)
                 if appSettings.showFilePanel {
                     VStack(spacing: 0) {
                         panelHeader(title: "File Changes", icon: "doc.on.doc") {
-                            appSettings.showFilePanel = false
+                            withAnimation(FoundryAnimation.spring) {
+                                appSettings.showFilePanel = false
+                            }
                         }
-                        Divider()
                         FileChangesPanel(session: session)
                     }
                     .frame(width: 320)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }
 
-            // Bottom: Terminal logs
+            // Bottom: Terminal logs (animated)
             if appSettings.showTerminalPanel {
-                Divider()
                 VStack(spacing: 0) {
                     panelHeader(title: "Terminal Output", icon: "terminal") {
-                        appSettings.showTerminalPanel = false
+                        withAnimation(FoundryAnimation.spring) {
+                            appSettings.showTerminalPanel = false
+                        }
                     }
                     TerminalView(session: session)
                 }
                 .frame(height: 180)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
             // Status bar
@@ -127,7 +131,7 @@ struct MainView: View {
     }
 
     private func panelHeader(title: String, icon: String, onClose: @escaping () -> Void) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Spacing.sm) {
             Image(systemName: icon)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -146,9 +150,9 @@ struct MainView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, Spacing.md)
         .padding(.vertical, 5)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+        .floatingHeader()
     }
 
     @ViewBuilder
@@ -161,12 +165,26 @@ struct MainView: View {
         .help("Command Palette (Cmd+K)")
 
         if currentPage == .sessions {
-            Toggle(isOn: $appSettings.showFilePanel) {
+            Toggle(isOn: Binding(
+                get: { appSettings.showFilePanel },
+                set: { newValue in
+                    withAnimation(FoundryAnimation.spring) {
+                        appSettings.showFilePanel = newValue
+                    }
+                }
+            )) {
                 Image(systemName: "doc.on.doc")
             }
             .help("Toggle File Changes Panel (Cmd+Shift+F)")
 
-            Toggle(isOn: $appSettings.showTerminalPanel) {
+            Toggle(isOn: Binding(
+                get: { appSettings.showTerminalPanel },
+                set: { newValue in
+                    withAnimation(FoundryAnimation.spring) {
+                        appSettings.showTerminalPanel = newValue
+                    }
+                }
+            )) {
                 Image(systemName: "terminal")
             }
             .help("Toggle Terminal Panel (Cmd+Shift+T)")
@@ -200,6 +218,7 @@ struct MainView: View {
 struct WelcomeView: View {
     @EnvironmentObject var sessionManager: SessionManager
     @EnvironmentObject var appSettings: AppSettings
+    @State private var heroVisible = false
 
     var recentProjects: [String] {
         let paths = sessionManager.sessions.map(\.projectPath)
@@ -212,14 +231,19 @@ struct WelcomeView: View {
             Spacer()
 
             // Hero
-            VStack(spacing: 16) {
+            VStack(spacing: Spacing.lg) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(.tint.opacity(0.08))
-                        .frame(width: 88, height: 88)
+                    RoundedRectangle(cornerRadius: CornerRadius.xxl, style: .continuous)
+                        .fill(GradientTokens.subtle)
+                        .frame(width: 96, height: 96)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: CornerRadius.xxl, style: .continuous)
+                                .strokeBorder(Color.accentColor.opacity(0.15), lineWidth: 1)
+                        )
+                        .shadow(color: Color.accentColor.opacity(0.15), radius: 20, y: 4)
                     Image(systemName: "hammer.fill")
                         .font(.system(size: 40))
-                        .foregroundStyle(.tint)
+                        .foregroundStyle(GradientTokens.accent)
                 }
 
                 Text("Foundry")
@@ -229,11 +253,14 @@ struct WelcomeView: View {
                     .font(.title3)
                     .foregroundStyle(.secondary)
             }
+            .opacity(heroVisible ? 1 : 0)
+            .offset(y: heroVisible ? 0 : 12)
+            .animation(FoundryAnimation.gentle, value: heroVisible)
 
-            Spacer().frame(height: 32)
+            Spacer().frame(height: Spacing.xxl)
 
             // Quick actions
-            VStack(spacing: 12) {
+            VStack(spacing: Spacing.md) {
                 Button {
                     openProject()
                 } label: {
@@ -250,7 +277,7 @@ struct WelcomeView: View {
 
             // Recent projects
             if !recentProjects.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
                     Text("Recent Projects")
                         .font(.caption)
                         .fontWeight(.semibold)
@@ -264,12 +291,12 @@ struct WelcomeView: View {
                             )
                             sessionManager.startSession(id)
                         } label: {
-                            HStack(spacing: 8) {
+                            HStack(spacing: Spacing.sm) {
                                 Image(systemName: "folder")
                                     .foregroundStyle(.secondary)
                                     .frame(width: 16)
 
-                                Text(abbreviatePath(path))
+                                Text(Utilities.abbreviatePath(path))
                                     .font(.system(.callout, design: .monospaced))
                                     .foregroundStyle(.primary)
                                     .lineLimit(1)
@@ -281,57 +308,46 @@ struct WelcomeView: View {
                                     .font(.caption)
                                     .foregroundStyle(.tertiary)
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                            .padding(.horizontal, Spacing.md)
+                            .padding(.vertical, Spacing.sm)
+                            .glassBackground(cornerRadius: CornerRadius.sm, shadow: false)
                         }
                         .buttonStyle(.plain)
+                        .hoverLift()
                     }
                 }
                 .frame(maxWidth: 400)
-                .padding(.top, 28)
+                .padding(.top, Spacing.xxl)
             }
 
             Spacer()
 
             // Footer
             if let version = sessionManager.claudeVersion {
-                HStack(spacing: 6) {
+                HStack(spacing: Spacing.sm) {
                     Circle()
                         .fill(.green)
                         .frame(width: 6, height: 6)
+                        .glowEffect(color: .green, isActive: true)
                     Text("Claude Code \(version)")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
-                .padding(.bottom, 16)
+                .padding(.bottom, Spacing.lg)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { heroVisible = true }
     }
 
     private func openProject() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Open"
-
-        if panel.runModal() == .OK, let url = panel.url {
+        if let url = Utilities.showOpenProjectPanel() {
             let id = sessionManager.createSession(
                 projectPath: url.path,
                 model: appSettings.defaultModel
             )
             sessionManager.startSession(id)
         }
-    }
-
-    private func abbreviatePath(_ path: String) -> String {
-        if let home = ProcessInfo.processInfo.environment["HOME"],
-           path.hasPrefix(home) {
-            return "~" + path.dropFirst(home.count)
-        }
-        return path
     }
 }
 
@@ -342,11 +358,16 @@ struct FileChangesPanel: View {
 
     var body: some View {
         if session.fileChanges.isEmpty {
-            VStack(spacing: 8) {
+            VStack(spacing: Spacing.sm) {
                 Spacer()
-                Image(systemName: "doc.text.magnifyingglass")
-                    .font(.title2)
-                    .foregroundStyle(.quaternary)
+                ZStack {
+                    Circle()
+                        .fill(Color.accentColor.opacity(0.06))
+                        .frame(width: 56, height: 56)
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.title2)
+                        .foregroundStyle(.quaternary)
+                }
                 Text("No file changes yet")
                     .font(.caption)
                     .foregroundStyle(.tertiary)

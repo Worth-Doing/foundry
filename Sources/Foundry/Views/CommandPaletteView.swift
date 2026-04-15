@@ -92,18 +92,18 @@ struct CommandPaletteView: View {
             Divider()
 
             // Footer
-            HStack(spacing: 16) {
-                HStack(spacing: 4) {
+            HStack(spacing: Spacing.lg) {
+                HStack(spacing: Spacing.xs) {
                     Image(systemName: "arrow.up.arrow.down")
                         .font(.system(size: 9))
                     Text("Navigate")
                 }
-                HStack(spacing: 4) {
+                HStack(spacing: Spacing.xs) {
                     Image(systemName: "return")
                         .font(.system(size: 9))
                     Text("Execute")
                 }
-                HStack(spacing: 4) {
+                HStack(spacing: Spacing.xs) {
                     Text("esc")
                         .font(.system(.caption2, design: .monospaced))
                     Text("Close")
@@ -111,7 +111,8 @@ struct CommandPaletteView: View {
             }
             .font(.caption2)
             .foregroundStyle(.tertiary)
-            .padding(8)
+            .padding(Spacing.sm)
+            .background(.ultraThinMaterial)
         }
         .frame(width: 520)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
@@ -237,14 +238,18 @@ struct CommandRow: View {
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(.tertiary)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
-            .background(
-                isSelected
-                    ? Color.accentColor.opacity(colorScheme == .light ? 0.08 : 0.12)
-                    : .clear,
-                in: RoundedRectangle(cornerRadius: 6)
-            )
+            .padding(.horizontal, Spacing.lg)
+            .padding(.vertical, Spacing.sm)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: CornerRadius.sm, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: CornerRadius.sm, style: .continuous)
+                                .fill(Color.accentColor.opacity(colorScheme == .light ? 0.06 : 0.1))
+                        )
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

@@ -9,7 +9,7 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="Foundry"
 BUNDLE_ID="com.foundry.app"
 APP_DIR="$PROJECT_DIR/$APP_NAME.app"
-DMG_NAME="Foundry-2.0.0.dmg"
+DMG_NAME="Foundry-3.0.0.dmg"
 DMG_PATH="$PROJECT_DIR/$DMG_NAME"
 RESOURCES_DIR="$PROJECT_DIR/Resources"
 
@@ -78,9 +78,9 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.0.0</string>
+    <string>3.0.0</string>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>3</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>

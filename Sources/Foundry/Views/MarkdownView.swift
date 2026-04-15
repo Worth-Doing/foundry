@@ -98,18 +98,6 @@ struct CodeBlockView: View {
     @State private var isCopied = false
     @Environment(\.colorScheme) private var colorScheme
 
-    private var bgColor: Color {
-        colorScheme == .dark
-            ? Color(nsColor: .textBackgroundColor).opacity(0.8)
-            : Color.black.opacity(0.04)
-    }
-
-    private var headerBg: Color {
-        colorScheme == .dark
-            ? Color(nsColor: .windowBackgroundColor).opacity(0.6)
-            : Color.black.opacity(0.06)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header bar
@@ -137,9 +125,9 @@ struct CodeBlockView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(headerBg)
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.sm)
+                .background(.thinMaterial)
             }
 
             // Code content
@@ -147,14 +135,10 @@ struct CodeBlockView: View {
                 Text(code)
                     .font(.system(size: 12, weight: .regular, design: .monospaced))
                     .textSelection(.enabled)
-                    .padding(12)
+                    .padding(Spacing.md)
             }
         }
-        .background(bgColor, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.primary.opacity(colorScheme == .light ? 0.08 : 0.06), lineWidth: 1)
-        )
+        .glassBackground(cornerRadius: CornerRadius.sm, shadow: false)
     }
 }
 
@@ -173,11 +157,11 @@ struct TableBlockView: View {
                     Text(header)
                         .font(.system(.caption, weight: .bold))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.sm)
                 }
             }
-            .background(Color(nsColor: .controlBackgroundColor))
+            .background(.ultraThinMaterial)
 
             Divider()
 

@@ -42,12 +42,6 @@ struct TimelineEventView: View {
 
     // MARK: - Colors
 
-    private var bubbleBackground: Color {
-        colorScheme == .dark
-            ? Color(nsColor: .controlBackgroundColor)
-            : Color(nsColor: .controlBackgroundColor)
-    }
-
     private var codeBg: Color {
         colorScheme == .dark
             ? Color(nsColor: .textBackgroundColor)
@@ -86,28 +80,24 @@ struct TimelineEventView: View {
             // Avatar
             ZStack {
                 Circle()
-                    .fill(Color.purple.opacity(0.1))
+                    .fill(GradientTokens.subtle)
                     .frame(width: 28, height: 28)
                 Text("C")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.purple)
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
                 MarkdownView(text: event.content)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(bubbleBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(Color.primary.opacity(colorScheme == .light ? 0.06 : 0), lineWidth: 1)
-                    )
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.vertical, Spacing.md)
+                    .glassBackground(cornerRadius: CornerRadius.xl, shadow: isHovered)
 
                 if isHovered {
                     Text(event.timestamp, style: .time)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
-                        .padding(.leading, 8)
+                        .padding(.leading, Spacing.sm)
                         .transition(.opacity)
                 }
             }
@@ -160,15 +150,15 @@ struct TimelineEventView: View {
                     .foregroundStyle(.orange)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
                 // Header
-                HStack(spacing: 6) {
+                HStack(spacing: Spacing.sm) {
                     Text(event.metadata?.toolName ?? "Tool")
                         .font(.system(.caption, design: .monospaced, weight: .semibold))
                         .foregroundStyle(.orange)
-                        .padding(.horizontal, 8)
+                        .padding(.horizontal, Spacing.sm)
                         .padding(.vertical, 3)
-                        .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                        .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
 
                     if isHovered {
                         Text(event.timestamp, style: .time)
@@ -182,27 +172,23 @@ struct TimelineEventView: View {
                     Text(cmd)
                         .font(.system(.callout, design: .monospaced))
                         .textSelection(.enabled)
-                        .padding(10)
+                        .padding(Spacing.md)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(codeBg, in: RoundedRectangle(cornerRadius: 8))
+                        .background(codeBg, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
                 } else if isExpanded, !event.content.isEmpty {
                     Text(event.content)
                         .font(.system(.callout, design: .monospaced))
                         .textSelection(.enabled)
                         .lineLimit(6)
-                        .padding(10)
+                        .padding(Spacing.md)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(codeBg, in: RoundedRectangle(cornerRadius: 8))
+                        .background(codeBg, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
                 }
             }
-            .padding(10)
-            .background(bubbleBackground.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color.primary.opacity(colorScheme == .light ? 0.06 : 0), lineWidth: 1)
-            )
+            .padding(Spacing.md)
+            .glassBackground(cornerRadius: CornerRadius.md, shadow: isHovered)
             .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
+                withAnimation(FoundryAnimation.micro) { isExpanded.toggle() }
             }
 
             Spacer(minLength: 40)

@@ -24,7 +24,7 @@ struct TerminalView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Filter bar
-            HStack(spacing: 8) {
+            HStack(spacing: Spacing.sm) {
                 // Source filter
                 Picker("", selection: $filterSource) {
                     Text("All").tag(nil as LogSource?)
@@ -36,7 +36,7 @@ struct TerminalView: View {
                 .frame(width: 240)
 
                 // Search
-                HStack(spacing: 4) {
+                HStack(spacing: Spacing.xs) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.tertiary)
                         .font(.caption)
@@ -44,9 +44,9 @@ struct TerminalView: View {
                         .textFieldStyle(.plain)
                         .font(.system(.caption, design: .monospaced))
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-                .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 4))
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
+                .glassBackground(cornerRadius: CornerRadius.sm, shadow: false)
 
                 Spacer()
 
@@ -63,8 +63,9 @@ struct TerminalView: View {
                 .buttonStyle(.plain)
                 .font(.caption)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.xs)
+            .floatingHeader()
 
             Divider()
 

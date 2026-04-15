@@ -125,7 +125,7 @@ struct PromptView: View {
         VStack(spacing: 0) {
             // Processing indicator
             if isProcessing {
-                HStack(spacing: 8) {
+                HStack(spacing: Spacing.sm) {
                     ProgressView()
                         .scaleEffect(0.6)
                         .frame(width: 16, height: 16)
@@ -139,22 +139,26 @@ struct PromptView: View {
                     Button {
                         sessionManager.stopSession(sessionID)
                     } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: Spacing.xs) {
                             Image(systemName: "stop.fill")
                                 .font(.system(size: 8))
                             Text("Stop")
                                 .font(.caption)
                         }
                         .foregroundStyle(.red)
-                        .padding(.horizontal, 8)
+                        .padding(.horizontal, Spacing.sm)
                         .padding(.vertical, 3)
-                        .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                        .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-                .background(Color.accentColor.opacity(0.04))
+                .padding(.horizontal, Spacing.lg)
+                .padding(.vertical, Spacing.sm)
+                .background(.ultraThinMaterial)
+                .overlay(
+                    Rectangle()
+                        .fill(Color.accentColor.opacity(0.04))
+                )
 
                 Divider()
             }
@@ -172,17 +176,15 @@ struct PromptView: View {
                 )
                 .frame(minHeight: 36, maxHeight: 120)
                 .padding(.horizontal, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                )
+
+                .glassBackground(cornerRadius: CornerRadius.md, shadow: false)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: CornerRadius.md, style: .continuous)
                         .strokeBorder(
                             isProcessing
                                 ? Color.clear
-                                : Color.accentColor.opacity(colorScheme == .light ? 0.2 : 0.3),
-                            lineWidth: 1
+                                : Color.accentColor.opacity(colorScheme == .light ? 0.15 : 0.2),
+                            lineWidth: 0.5
                         )
                 )
 

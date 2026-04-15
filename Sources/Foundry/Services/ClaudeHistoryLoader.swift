@@ -397,34 +397,7 @@ struct ClaudeHistoryLoader {
     }
 
     private static func formatToolInput(toolName: String, input: [String: Any]) -> String {
-        switch toolName {
-        case "Bash":
-            return input["command"] as? String ?? ""
-        case "Read":
-            return input["file_path"] as? String ?? ""
-        case "Write":
-            let path = input["file_path"] as? String ?? ""
-            let contentLen = (input["content"] as? String)?.count ?? 0
-            return "\(path) (\(contentLen) chars)"
-        case "Edit":
-            return input["file_path"] as? String ?? ""
-        case "Grep":
-            return "grep: \(input["pattern"] as? String ?? "")"
-        case "Glob":
-            return "glob: \(input["pattern"] as? String ?? "")"
-        case "Agent":
-            return input["description"] as? String ?? input["prompt"] as? String ?? ""
-        case "TaskCreate":
-            return input["subject"] as? String ?? ""
-        case "TaskUpdate":
-            return "Task #\(input["taskId"] as? String ?? "") → \(input["status"] as? String ?? "")"
-        default:
-            if let data = try? JSONSerialization.data(withJSONObject: input, options: []),
-               let str = String(data: data, encoding: .utf8) {
-                return String(str.prefix(300))
-            }
-            return ""
-        }
+        Utilities.formatToolInput(toolName: toolName, input: input)
     }
 
     private static func parseTimestamp(_ value: Any?) -> Date {

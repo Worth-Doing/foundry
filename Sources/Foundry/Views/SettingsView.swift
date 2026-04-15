@@ -266,14 +266,20 @@ struct SettingsView: View {
     // MARK: - About Tab
 
     private var aboutTab: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: Spacing.xl) {
             Spacer()
 
-            Image(systemName: "hammer.fill")
-                .font(.system(size: 52))
-                .foregroundStyle(.tint)
+            ZStack {
+                Circle()
+                    .fill(GradientTokens.subtle)
+                    .frame(width: 96, height: 96)
+                    .shadow(color: Color.accentColor.opacity(0.12), radius: 20, y: 4)
+                Image(systemName: "hammer.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(GradientTokens.accent)
+            }
 
-            VStack(spacing: 4) {
+            VStack(spacing: Spacing.xs) {
                 Text("Foundry")
                     .font(.title.bold())
 
@@ -282,17 +288,17 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text("Version 2.0.0")
+            Text("Version 3.0.0")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(.quaternary.opacity(0.3), in: Capsule())
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.xs)
+                .glassBackground(cornerRadius: CornerRadius.md, shadow: false)
 
             Divider()
                 .frame(width: 200)
 
-            VStack(spacing: 4) {
+            VStack(spacing: Spacing.xs) {
                 Text("Built with SwiftUI")
                 Text("Powered by Claude Code")
             }

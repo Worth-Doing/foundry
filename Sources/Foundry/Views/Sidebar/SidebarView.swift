@@ -70,7 +70,7 @@ struct SidebarView: View {
             Divider()
 
             // Bottom bar
-            HStack(spacing: 12) {
+            HStack(spacing: Spacing.md) {
                 Button {
                     openNewSession()
                 } label: {
@@ -95,21 +95,15 @@ struct SidebarView: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
+            .background(.ultraThinMaterial)
         }
         .navigationTitle("Foundry")
     }
 
     private func openNewSession() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.message = "Select project directory"
-        panel.prompt = "Open"
-
-        if panel.runModal() == .OK, let url = panel.url {
+        if let url = Utilities.showOpenProjectPanel(message: "Select project directory") {
             let id = sessionManager.createSession(
                 projectPath: url.path,
                 model: appSettings.defaultModel
@@ -172,6 +166,7 @@ struct SidebarView: View {
 struct SessionRow: View {
     let session: Session
     @Environment(\.colorScheme) private var colorScheme
+    @State private var isPulsing = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -180,6 +175,14 @@ struct SessionRow: View {
                 Circle()
                     .fill(statusColor.opacity(0.15))
                     .frame(width: 24, height: 24)
+                    .scaleEffect(session.status == .running && isPulsing ? 1.2 : 1.0)
+                    .opacity(session.status == .running && isPulsing ? 0.5 : 1.0)
+                    .animation(
+                        session.status == .running
+                            ? .easeInOut(duration: 1.2).repeatForever(autoreverses: true)
+                            : .default,
+                        value: isPulsing
+                    )
 
                 if session.status == .running {
                     ProgressView()
@@ -190,6 +193,12 @@ struct SessionRow: View {
                         .fill(statusColor)
                         .frame(width: 7, height: 7)
                 }
+            }
+            .onAppear {
+                if session.status == .running { isPulsing = true }
+            }
+            .onChange(of: session.status) { _, newStatus in
+                isPulsing = newStatus == .running
             }
 
             VStack(alignment: .leading, spacing: 3) {
@@ -232,35 +241,18 @@ struct SessionRow: View {
     }
 
     private var statusColor: Color {
-        switch session.status {
-        case .running: return .green
-        case .idle: return .blue
-        case .initializing: return .orange
-        case .error: return .red
-        case .stopped: return .secondary
-        }
+        Utilities.statusColor(for: session.status)
     }
 
     private var shortModelName: String {
-        let name = session.modelName
-        if name.contains("opus") { return "Opus" }
-        if name.contains("haiku") { return "Haiku" }
-        return "Sonnet"
+        Utilities.displayModelName(session.modelName)
     }
 
     private var modelColor: Color {
-        let name = session.modelName
-        if name.contains("opus") { return .purple }
-        if name.contains("haiku") { return .green }
-        return .blue
+        Utilities.modelColor(session.modelName)
     }
 
     private var abbreviatedPath: String {
-        let path = session.projectPath
-        if let home = ProcessInfo.processInfo.environment["HOME"],
-           path.hasPrefix(home) {
-            return "~" + path.dropFirst(home.count)
-        }
-        return path
+        Utilities.abbreviatePath(session.projectPath)
     }
 }

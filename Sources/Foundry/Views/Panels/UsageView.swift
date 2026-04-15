@@ -256,19 +256,14 @@ struct UsageView: View {
                 Text("")
                     .frame(width: 100)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.xs)
+            .background(.ultraThinMaterial)
         }
     }
 
     private func formatTokens(_ count: Int) -> String {
-        if count >= 1_000_000 {
-            return String(format: "%.1fM", Double(count) / 1_000_000)
-        } else if count >= 1_000 {
-            return String(format: "%.1fK", Double(count) / 1_000)
-        }
-        return "\(count)"
+        Utilities.formatTokens(count)
     }
 }
 
@@ -279,10 +274,9 @@ struct SummaryCard: View {
     let value: String
     let icon: String
     let color: Color
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Spacing.sm) {
             Image(systemName: icon)
                 .font(.title2)
                 .foregroundStyle(color)
@@ -296,11 +290,19 @@ struct SummaryCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(color.opacity(colorScheme == .light ? 0.06 : 0.08), in: RoundedRectangle(cornerRadius: 12))
+        .background {
+            RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                        .fill(color.opacity(0.05))
+                )
+        }
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(color.opacity(0.1), lineWidth: 1)
+            RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                .strokeBorder(color.opacity(0.1), lineWidth: 0.5)
         )
+        .shadow(color: color.opacity(0.08), radius: 8, y: 2)
     }
 }
 
@@ -321,15 +323,9 @@ struct TokenRow: View {
 
             Spacer()
 
-            Text(formatTokens(count))
+            Text(Utilities.formatTokensDetailed(count))
                 .font(.system(.callout, design: .monospaced, weight: .medium))
         }
-    }
-
-    private func formatTokens(_ count: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        return formatter.string(from: NSNumber(value: count)) ?? "\(count)"
     }
 }
 

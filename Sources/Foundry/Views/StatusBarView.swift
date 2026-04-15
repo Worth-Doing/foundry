@@ -106,7 +106,7 @@ struct StatusBarView: View {
                 .padding(.trailing, 10)
         }
         .padding(.vertical, 3)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+        .background(.ultraThinMaterial)
         .frame(height: 22)
     }
 
@@ -116,45 +116,22 @@ struct StatusBarView: View {
     }
 
     private var statusColor: Color {
-        switch session.status {
-        case .running: return .green
-        case .idle: return .blue
-        case .initializing: return .orange
-        case .error: return .red
-        case .stopped: return .secondary
-        }
+        Utilities.statusColor(for: session.status)
     }
 
     private var displayModelName: String {
-        let name = session.modelName
-        if name.contains("opus") { return "Opus" }
-        if name.contains("sonnet") { return "Sonnet" }
-        if name.contains("haiku") { return "Haiku" }
-        return name
+        Utilities.displayModelName(session.modelName)
     }
 
     private var modelColor: Color {
-        let name = session.modelName
-        if name.contains("opus") { return .purple }
-        if name.contains("haiku") { return .green }
-        return .blue
+        Utilities.modelColor(session.modelName)
     }
 
     private var abbreviatedPath: String {
-        let path = session.projectPath
-        if let home = ProcessInfo.processInfo.environment["HOME"],
-           path.hasPrefix(home) {
-            return "~" + path.dropFirst(home.count)
-        }
-        return path
+        Utilities.abbreviatePath(session.projectPath)
     }
 
     private func formatTokens(_ count: Int) -> String {
-        if count >= 1_000_000 {
-            return String(format: "%.1fM", Double(count) / 1_000_000)
-        } else if count >= 1_000 {
-            return String(format: "%.1fK", Double(count) / 1_000)
-        }
-        return "\(count)"
+        Utilities.formatTokens(count)
     }
 }

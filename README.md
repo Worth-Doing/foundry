@@ -22,10 +22,10 @@
 </p>
 
 <p align="center">
-  <a href="#"><img src="https://img.shields.io/badge/Version-2.0.0-blueviolet?style=flat-square" alt="Version"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Version-3.0.0-blueviolet?style=flat-square" alt="Version"></a>
   <a href="#"><img src="https://img.shields.io/badge/Architecture-arm64-informational?style=flat-square" alt="Arch"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Lines%20of%20Code-7%2C000%2B-blueviolet?style=flat-square" alt="LOC"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Swift%20Files-28-orange?style=flat-square" alt="Files"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Lines%20of%20Code-8%2C500%2B-blueviolet?style=flat-square" alt="LOC"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Swift%20Files-30-orange?style=flat-square" alt="Files"></a>
   <a href="#"><img src="https://img.shields.io/badge/Build%20System-SPM-red?style=flat-square" alt="SPM"></a>
   <a href="#"><img src="https://img.shields.io/badge/Made%20with-Claude%20Code-8A2BE2?style=flat-square" alt="Claude Code"></a>
 </p>
@@ -41,37 +41,50 @@
 ## Download
 
 <p align="center">
-  <a href="https://github.com/Worth-Doing/foundry/releases/download/v2.0.0/Foundry-2.0.0.dmg">
-    <img src="https://img.shields.io/badge/Download-Foundry%202.0.0%20DMG-blue?style=for-the-badge&logo=apple&logoColor=white" alt="Download DMG">
+  <a href="https://github.com/Worth-Doing/foundry/releases/download/v3.0.0/Foundry-3.0.0.dmg">
+    <img src="https://img.shields.io/badge/Download-Foundry%203.0.0%20DMG-blue?style=for-the-badge&logo=apple&logoColor=white" alt="Download DMG">
   </a>
 </p>
 
-> **[Foundry-2.0.0.dmg](https://github.com/Worth-Doing/foundry/releases/download/v2.0.0/Foundry-2.0.0.dmg)** — 3.5 MB | Apple Notarized | Code Signed | macOS 14+
+> **[Foundry-3.0.0.dmg](https://github.com/Worth-Doing/foundry/releases/download/v3.0.0/Foundry-3.0.0.dmg)** — 2.9 MB | Apple Notarized | Code Signed | macOS 14+
 
 ---
 
-## What's New in 2.0.0
+## What's New in 3.0.0
 
-### Light Theme by Default
+### Glass UI (iOS 26 Aesthetic)
 
-Foundry 2.0 ships with a **clean light theme** as the default appearance. Every view has been carefully adapted for light mode — from chat bubbles with subtle borders and shadows to code blocks with proper contrast, diff views with readable green/red backgrounds, and a polished command palette. Switch between System, Light, and Dark at any time in Settings.
+Foundry 3.0 introduces a **complete glassmorphism redesign** inspired by iOS 26 and next-generation macOS design language:
 
-### New Forge Icon
+- **Translucent materials** (`.ultraThinMaterial`, `.regularMaterial`) replace all flat backgrounds
+- **Glass chat bubbles** — assistant messages, tool cards, and code blocks float on layered glass
+- **Gradient accents** — hero icons and empty states use subtle blue-to-purple gradients
+- **Hover lift effects** — interactive elements scale up with shadow on hover
+- **Spring animations** — panels slide in/out with physics-based spring curves
+- **Depth hierarchy** — floating panel headers, glass cards, soft shadows throughout
+- **Pulse animations** — running session indicators pulse in the sidebar
 
-A completely redesigned app icon: an obsidian shield with a glowing amber `>` fissure and terminal cursor — the mark of a forge where code is built.
+### Real-Time Streaming
 
-### Persistent Settings
+**Critical fix:** Claude output now streams **line-by-line in real time**. Previously, the UI showed nothing until Claude finished entirely. Now you see every response, tool call, and thinking block the instant Claude produces it.
 
-All preferences now persist across launches via `AppSettings` — theme, default model, panel visibility, permission mode, and more. No more resetting on restart.
+### Autosave & File Monitoring
 
-### Upgraded UI
+- **Sessions autosave** to `~/Library/Application Support/Foundry/` on status changes
+- **Live file monitoring** tracks file changes in project directories using DispatchSource
+- Both `PersistenceManager` and `FileMonitor` (previously dead code) are now fully wired
 
-- **Model badges** in the sidebar show Opus (purple), Sonnet (blue), or Haiku (green) per session
-- **Recent Projects** in the welcome view for quick-launch
-- **Session context menu** with Rename, Duplicate, Copy Path, Reveal in Finder
-- **Panel toggles** persisted — Terminal and File panels remember their state
-- **Keyboard shortcuts** for panels: `Cmd+Shift+T` (terminal), `Cmd+Shift+F` (files)
-- **Better status bar** with color-coded model names and cleaner layout
+### Design System
+
+- New `DesignSystem.swift` — reusable glass modifiers, spacing tokens (4pt grid), corner radius tokens, gradient tokens, animation constants
+- New `Utilities.swift` — 7 shared functions extracted from 6 duplicated code instances across the codebase
+
+### Architecture Improvements
+
+- Streaming I/O via `FileHandle.readabilityHandler` replaces blocking `readDataToEndOfFile`
+- Shared utilities eliminate all code duplication
+- File monitors properly started/stopped with session lifecycle
+- Entrance animations on welcome and onboarding screens
 
 ---
 
@@ -299,6 +312,8 @@ Comprehensive analytics for your Claude Code usage:
 ```
 Sources/Foundry/
 ├── FoundryApp.swift                    # @main SwiftUI App entry point
+├── DesignSystem.swift                  # Glass modifiers, spacing, gradients, animations
+├── Utilities.swift                     # Shared helpers (formatting, display, panels)
 │
 ├── Models/
 │   ├── Session.swift                   # Session, TokenUsage, FileChange, DiffLine, LogEntry
@@ -369,7 +384,7 @@ Sources/Foundry/
 
 ### Option 1: Download DMG (Recommended)
 
-1. **[Download Foundry-2.0.0.dmg](https://github.com/Worth-Doing/foundry/releases/download/v2.0.0/Foundry-2.0.0.dmg)**
+1. **[Download Foundry-3.0.0.dmg](https://github.com/Worth-Doing/foundry/releases/download/v3.0.0/Foundry-3.0.0.dmg)**
 2. Open the DMG
 3. Drag **Foundry** to **Applications**
 4. Launch from Applications or Spotlight
@@ -483,14 +498,14 @@ Access via **Foundry > Settings** or the gear icon:
 
 | Metric | Value |
 |--------|-------|
-| **Version** | 2.0.0 |
+| **Version** | 3.0.0 |
 | **Language** | Swift 6.0 |
 | **Framework** | SwiftUI (100% native) |
-| **Lines of Code** | 7,000+ |
-| **Swift Files** | 28 |
+| **Lines of Code** | 8,500+ |
+| **Swift Files** | 30 |
 | **Build System** | Swift Package Manager |
 | **Binary Size** | ~3.5 MB (release, arm64) |
-| **DMG Size** | 3.5 MB |
+| **DMG Size** | 2.9 MB |
 | **Min macOS** | 14.0 (Sonoma) |
 | **Signing** | Developer ID + Hardened Runtime |
 | **Notarization** | Apple Notarized + Stapled |
@@ -504,14 +519,14 @@ Access via **Foundry > Settings** or the gear icon:
 ```
 foundry/
 ├── Package.swift                      # SPM package definition
-├── Sources/Foundry/                   # All source code (28 Swift files)
+├── Sources/Foundry/                   # All source code (30 Swift files)
 ├── Resources/                         # Logo SVG, PNG, .icns
 ├── Scripts/
 │   ├── build.sh                       # Quick debug/release build
 │   ├── build-release.sh               # Full: build + sign + DMG + notarize
 │   └── svg-to-icns.swift              # Convert SVG icon to .icns with all sizes
 ├── Foundry.app/                       # Built app bundle
-├── Foundry-2.0.0.dmg                  # Distribution DMG
+├── Foundry-3.0.0.dmg                  # Distribution DMG
 └── Foundry.entitlements               # Hardened runtime entitlements
 ```
 
@@ -542,7 +557,12 @@ swift Scripts/svg-to-icns.swift
 - [x] Session renaming and duplication
 - [x] Recent projects quick-launch
 - [x] Panel state persistence
-- [ ] Real-time streaming (partial message rendering as they arrive)
+- [x] Real-time streaming (line-by-line output as Claude works)
+- [x] Glass UI redesign (iOS 26 glassmorphism aesthetic)
+- [x] Autosave sessions to Application Support
+- [x] Live file monitoring with DispatchSource
+- [x] Design system with reusable glass components
+- [x] Code deduplication across codebase
 - [ ] File diff visualization with accept/reject actions
 - [ ] Session search across all history
 - [ ] Export session as Markdown

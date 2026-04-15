@@ -55,7 +55,8 @@ final class ClaudeProcessController: Sendable {
         self.onStatusChange = onStatusChange
     }
 
-    /// Send a message to Claude - spawns a process for each message
+    /// Send a message to Claude — spawns a process for each message.
+    /// Output is streamed line-by-line for real-time UI updates.
     func sendMessage(_ message: String) {
         guard let claudePath = Self.findClaudePath() else {
             onEvent(SessionEvent(type: .error, content: "Claude Code CLI not found"))
@@ -121,37 +122,69 @@ final class ClaudeProcessController: Sendable {
                 return
             }
 
-            // Read stdout in background
-            var stdoutBuffer = ""
-            let stdoutHandle = stdoutPipe.fileHandleForReading
+            // ── Streaming stdout line-by-line ──
+            // Buffer incomplete lines until we see a newline
+            let bufferLock = NSLock()
+            var stdoutBuffer = Data()
 
-            // Read all stdout
-            let stdoutData = stdoutHandle.readDataToEndOfFile()
-            if let output = String(data: stdoutData, encoding: .utf8) {
-                stdoutBuffer = output
-                onLog(LogEntry(source: .stdout, content: output))
-            }
-
-            // Read stderr
-            let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-            if let errOutput = String(data: stderrData, encoding: .utf8),
-               !errOutput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                onLog(LogEntry(source: .stderr, content: errOutput))
-            }
-
-            process.waitUntilExit()
-
-            // Parse stdout JSON lines
-            let lines = stdoutBuffer.components(separatedBy: .newlines)
-            for line in lines {
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { continue }
-                guard let data = trimmed.data(using: .utf8) else { continue }
-                guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                    continue
+            stdoutPipe.fileHandleForReading.readabilityHandler = { [self] handle in
+                let chunk = handle.availableData
+                guard !chunk.isEmpty else {
+                    // EOF — process finished writing
+                    handle.readabilityHandler = nil
+                    return
                 }
 
-                self.handleStreamEvent(json)
+                bufferLock.lock()
+                stdoutBuffer.append(chunk)
+
+                // Process all complete lines (delimited by 0x0A newline)
+                let newline = UInt8(0x0A)
+                while let idx = stdoutBuffer.firstIndex(of: newline) {
+                    let lineData = stdoutBuffer[stdoutBuffer.startIndex..<idx]
+                    stdoutBuffer = stdoutBuffer[(idx + 1)...]
+                    bufferLock.unlock()
+
+                    if let line = String(data: lineData, encoding: .utf8) {
+                        processStreamLine(line)
+                    }
+
+                    bufferLock.lock()
+                }
+                bufferLock.unlock()
+            }
+
+            // ── Streaming stderr ──
+            stderrPipe.fileHandleForReading.readabilityHandler = { [self] handle in
+                let chunk = handle.availableData
+                guard !chunk.isEmpty else {
+                    handle.readabilityHandler = nil
+                    return
+                }
+                if let text = String(data: chunk, encoding: .utf8),
+                   !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    onLog(LogEntry(source: .stderr, content: text))
+                }
+            }
+
+            // Wait for process to finish
+            process.waitUntilExit()
+
+            // Clean up handlers
+            stdoutPipe.fileHandleForReading.readabilityHandler = nil
+            stderrPipe.fileHandleForReading.readabilityHandler = nil
+
+            // Process any remaining buffered data
+            bufferLock.lock()
+            let remaining = stdoutBuffer
+            stdoutBuffer = Data()
+            bufferLock.unlock()
+
+            if !remaining.isEmpty, let text = String(data: remaining, encoding: .utf8) {
+                let lines = text.components(separatedBy: .newlines)
+                for line in lines {
+                    processStreamLine(line)
+                }
             }
 
             // Update state
@@ -186,24 +219,35 @@ final class ClaudeProcessController: Sendable {
         onStatusChange(.stopped)
     }
 
-    // MARK: - Stream event handling
+    // MARK: - Stream line processing
 
-    private func handleStreamEvent(_ json: [String: Any]) {
+    /// Process a single line of stream-json output in real-time
+    private func processStreamLine(_ line: String) {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        // Log raw output
+        onLog(LogEntry(source: .stdout, content: trimmed))
+
+        // Try to parse as JSON for session_id extraction and rich event handling
+        guard let data = trimmed.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return
+        }
+
         let type = json["type"] as? String ?? ""
+
+        // Extract session_id from system or result events
+        if let sid = json["session_id"] as? String {
+            lock.lock()
+            _claudeSessionID = sid
+            lock.unlock()
+        }
 
         switch type {
         case "system":
-            // Extract session_id for future --resume
-            if let sid = json["session_id"] as? String {
-                lock.lock()
-                _claudeSessionID = sid
-                lock.unlock()
-            }
             let model = json["model"] as? String ?? ""
-            onEvent(SessionEvent(
-                type: .sessionStart,
-                content: "Model: \(model)"
-            ))
+            onEvent(SessionEvent(type: .sessionStart, content: "Model: \(model)"))
 
         case "assistant":
             guard let message = json["message"] as? [String: Any],
@@ -227,7 +271,7 @@ final class ClaudeProcessController: Sendable {
                 case "tool_use":
                     let toolName = block["name"] as? String ?? "unknown"
                     let input = block["input"] as? [String: Any] ?? [:]
-                    let content = formatToolInput(toolName: toolName, input: input)
+                    let content = Utilities.formatToolInput(toolName: toolName, input: input)
                     var metadata = EventMetadata(toolName: toolName)
 
                     let eventType: EventType
@@ -277,13 +321,6 @@ final class ClaudeProcessController: Sendable {
                 onEvent(SessionEvent(type: .error, content: errorMsg))
             }
 
-            // Extract session ID
-            if let sid = json["session_id"] as? String {
-                lock.lock()
-                _claudeSessionID = sid
-                lock.unlock()
-            }
-
             // Extract cost/usage
             if let costUSD = json["total_cost_usd"] as? Double {
                 var tokenUsage = TokenUsage()
@@ -299,35 +336,6 @@ final class ClaudeProcessController: Sendable {
 
         default:
             break
-        }
-    }
-
-    private func formatToolInput(toolName: String, input: [String: Any]) -> String {
-        switch toolName {
-        case "Bash":
-            return input["command"] as? String ?? ""
-        case "Read":
-            return input["file_path"] as? String ?? ""
-        case "Write":
-            let path = input["file_path"] as? String ?? ""
-            let contentLen = (input["content"] as? String)?.count ?? 0
-            return "\(path) (\(contentLen) chars)"
-        case "Edit":
-            let path = input["file_path"] as? String ?? ""
-            return path
-        case "Grep":
-            let pattern = input["pattern"] as? String ?? ""
-            return "grep: \(pattern)"
-        case "Glob":
-            return "glob: \(input["pattern"] as? String ?? "")"
-        case "Agent":
-            return input["description"] as? String ?? ""
-        default:
-            if let data = try? JSONSerialization.data(withJSONObject: input, options: []),
-               let str = String(data: data, encoding: .utf8) {
-                return String(str.prefix(300))
-            }
-            return ""
         }
     }
 

@@ -3,24 +3,26 @@ import SwiftUI
 struct OnboardingView: View {
     @EnvironmentObject var sessionManager: SessionManager
     @State private var isChecking = false
+    @State private var isVisible = false
 
     var body: some View {
-        VStack(spacing: 32) {
+        VStack(spacing: Spacing.xxl) {
             Spacer()
 
             // Icon
             ZStack {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.orange.opacity(0.08))
+                RoundedRectangle(cornerRadius: CornerRadius.xxl, style: .continuous)
+                    .fill(GradientTokens.warm.opacity(0.15))
                     .frame(width: 100, height: 100)
+                    .shadow(color: .orange.opacity(0.15), radius: 20, y: 4)
 
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 40))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(GradientTokens.warm)
             }
 
             // Title
-            VStack(spacing: 8) {
+            VStack(spacing: Spacing.sm) {
                 Text("Claude Code Not Found")
                     .font(.title.bold())
 
@@ -32,11 +34,11 @@ struct OnboardingView: View {
             }
 
             // Installation instructions
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: Spacing.lg) {
                 Text("Installation Steps")
                     .font(.headline)
 
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: Spacing.md) {
                     instructionStep(number: 1, text: "Install Claude Code via npm:")
                     codeBlock("npm install -g @anthropic-ai/claude-code")
 
@@ -47,12 +49,8 @@ struct OnboardingView: View {
                     codeBlock("claude --version")
                 }
             }
-            .padding(24)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
-            )
+            .padding(Spacing.xl)
+            .glassCard(cornerRadius: CornerRadius.lg)
             .frame(maxWidth: 500)
 
             // Retry button
@@ -80,10 +78,14 @@ struct OnboardingView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)
+        .opacity(isVisible ? 1 : 0)
+        .offset(y: isVisible ? 0 : 16)
+        .animation(FoundryAnimation.gentle, value: isVisible)
+        .onAppear { isVisible = true }
     }
 
     private func instructionStep(number: Int, text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: Spacing.sm) {
             Text("\(number).")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.accentColor)
@@ -112,8 +114,8 @@ struct OnboardingView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
         }
-        .padding(10)
-        .background(Color.black.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
-        .padding(.leading, 32)
+        .padding(Spacing.md)
+        .glassBackground(cornerRadius: CornerRadius.sm, shadow: false)
+        .padding(.leading, Spacing.xxl)
     }
 }

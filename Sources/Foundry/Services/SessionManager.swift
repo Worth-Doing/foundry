@@ -14,6 +14,11 @@ class SessionManager: ObservableObject {
     /// Map from Foundry session UUID to the JSONL file path for lazy loading events
     private var jsonlPaths: [UUID: URL] = [:]
     private var controllers: [UUID: ClaudeProcessController] = [:]
+    private var fileMonitors: [UUID: FileMonitor] = [:]
+    private let persistence = PersistenceManager()
+
+    /// Reference to app settings (wired from FoundryApp)
+    var appSettings: AppSettings?
 
     var activeSession: Session? {
         guard let id = activeSessionID else { return nil }
@@ -143,6 +148,22 @@ class SessionManager: ObservableObject {
         )
 
         controllers[sessionID] = controller
+
+        // Start file monitoring for the project directory
+        let monitor = FileMonitor(directoryPath: session.projectPath) { [weak self] path, changeType in
+            Task { @MainActor in
+                guard let self = self,
+                      let index = self.sessions.firstIndex(where: { $0.id == sessionID }) else { return }
+                // Avoid duplicates for same path
+                if !self.sessions[index].fileChanges.contains(where: { $0.filePath == path && $0.changeType == changeType }) {
+                    self.sessions[index].fileChanges.append(
+                        FileChange(filePath: path, changeType: changeType)
+                    )
+                }
+            }
+        }
+        monitor.start()
+        fileMonitors[sessionID] = monitor
     }
 
     func sendMessage(to sessionID: UUID, message: String) {
@@ -159,15 +180,21 @@ class SessionManager: ObservableObject {
 
     func stopSession(_ sessionID: UUID) {
         controllers[sessionID]?.stop()
+        fileMonitors[sessionID]?.stop()
+        fileMonitors.removeValue(forKey: sessionID)
         if let index = sessions.firstIndex(where: { $0.id == sessionID }) {
             sessions[index].status = .stopped
+            autoSaveSession(sessions[index])
         }
     }
 
     func deleteSession(_ sessionID: UUID) {
         controllers[sessionID]?.stop()
+        fileMonitors[sessionID]?.stop()
         controllers.removeValue(forKey: sessionID)
+        fileMonitors.removeValue(forKey: sessionID)
         jsonlPaths.removeValue(forKey: sessionID)
+        persistence.deleteSession(sessionID)
         sessions.removeAll(where: { $0.id == sessionID })
         if activeSessionID == sessionID {
             activeSessionID = sessions.first?.id
@@ -221,5 +248,20 @@ class SessionManager: ObservableObject {
     private func handleStatusChange(sessionID: UUID, status: SessionStatus) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
         sessions[index].status = status
+
+        // Autosave when session becomes idle or stops
+        if status == .idle || status == .stopped {
+            autoSaveSession(sessions[index])
+        }
+    }
+
+    // MARK: - Persistence
+
+    private func autoSaveSession(_ session: Session) {
+        guard appSettings?.autoSaveSessions == true else { return }
+        let sessionCopy = session
+        DispatchQueue.global(qos: .utility).async { [persistence] in
+            persistence.saveSession(sessionCopy)
+        }
     }
 }
