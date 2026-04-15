@@ -6,23 +6,43 @@ struct SidebarView: View {
     @State private var searchText = ""
     @State private var renamingSessionID: UUID?
     @State private var renameText = ""
+    @State private var showRenameAlert = false
+    @State private var editingNotesID: UUID?
+    @State private var notesText = ""
+    @State private var groupByProject = false
 
-    var filteredSessions: [Session] {
+    private var filteredSessions: [Session] {
         if searchText.isEmpty {
             return sessionManager.sessions
         }
         return sessionManager.sessions.filter {
             $0.name.localizedCaseInsensitiveContains(searchText) ||
-            $0.projectPath.localizedCaseInsensitiveContains(searchText)
+            $0.projectPath.localizedCaseInsensitiveContains(searchText) ||
+            $0.tags.contains(where: { $0.localizedCaseInsensitiveContains(searchText) }) ||
+            $0.notes.localizedCaseInsensitiveContains(searchText)
         }
     }
 
-    var activeSessions: [Session] {
-        filteredSessions.filter { $0.status == .running || $0.status == .idle || $0.status == .initializing }
+    private var pinnedSessions: [Session] {
+        filteredSessions.filter { $0.isPinned }
     }
 
-    var historySessions: [Session] {
-        filteredSessions.filter { $0.status == .stopped || $0.status == .error }
+    private var favoriteSessions: [Session] {
+        filteredSessions.filter { $0.isFavorite && !$0.isPinned }
+    }
+
+    private var activeSessions: [Session] {
+        filteredSessions.filter {
+            !$0.isPinned && !$0.isFavorite &&
+            ($0.status == .running || $0.status == .idle || $0.status == .initializing)
+        }
+    }
+
+    private var historySessions: [Session] {
+        filteredSessions.filter {
+            !$0.isPinned && !$0.isFavorite &&
+            ($0.status == .stopped || $0.status == .error)
+        }
     }
 
     var body: some View {
@@ -35,6 +55,37 @@ struct SidebarView: View {
                     }
                 }
             )) {
+                // Pinned sessions
+                if !pinnedSessions.isEmpty {
+                    Section {
+                        ForEach(pinnedSessions) { session in
+                            SessionRow(session: session)
+                                .tag(session.id)
+                                .contextMenu { sessionContextMenu(session) }
+                        }
+                    } header: {
+                        Label("Pinned", systemImage: "pin.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
+
+                // Favorite sessions
+                if !favoriteSessions.isEmpty {
+                    Section {
+                        ForEach(favoriteSessions) { session in
+                            SessionRow(session: session)
+                                .tag(session.id)
+                                .contextMenu { sessionContextMenu(session) }
+                        }
+                    } header: {
+                        Label("Favorites", systemImage: "star.fill")
+                            .font(.caption)
+                            .foregroundStyle(.yellow)
+                    }
+                }
+
+                // Active sessions
                 if !activeSessions.isEmpty {
                     Section("Active") {
                         ForEach(activeSessions) { session in
@@ -45,7 +96,8 @@ struct SidebarView: View {
                     }
                 }
 
-                Section("History (\(historySessions.count))") {
+                // History
+                Section {
                     if sessionManager.isLoadingHistory {
                         HStack(spacing: 8) {
                             ProgressView()
@@ -57,15 +109,61 @@ struct SidebarView: View {
                         .padding(.vertical, 4)
                     }
 
-                    ForEach(historySessions) { session in
-                        SessionRow(session: session)
-                            .tag(session.id)
-                            .contextMenu { sessionContextMenu(session) }
+                    if groupByProject {
+                        // Group history by project
+                        let grouped = Dictionary(grouping: historySessions, by: \.projectName)
+                        let sortedKeys = grouped.keys.sorted()
+                        ForEach(sortedKeys, id: \.self) { project in
+                            DisclosureGroup {
+                                ForEach(grouped[project] ?? []) { session in
+                                    SessionRow(session: session, compact: true)
+                                        .tag(session.id)
+                                        .contextMenu { sessionContextMenu(session) }
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "folder.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text(project)
+                                        .font(.system(.callout, weight: .medium))
+                                    Spacer()
+                                    Text("\(grouped[project]?.count ?? 0)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 1)
+                                        .background(.quaternary, in: Capsule())
+                                }
+                            }
+                        }
+                    } else {
+                        ForEach(historySessions) { session in
+                            SessionRow(session: session)
+                                .tag(session.id)
+                                .contextMenu { sessionContextMenu(session) }
+                        }
+                    }
+                } header: {
+                    HStack {
+                        Text("History (\(historySessions.count))")
+                        Spacer()
+                        Button {
+                            withAnimation(FoundryAnimation.snappy) {
+                                groupByProject.toggle()
+                            }
+                        } label: {
+                            Image(systemName: groupByProject ? "folder.fill" : "list.bullet")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help(groupByProject ? "List view" : "Group by project")
                     }
                 }
             }
             .listStyle(.sidebar)
-            .searchable(text: $searchText, prompt: "Filter sessions")
+            .searchable(text: $searchText, prompt: "Search sessions...")
 
             Divider()
 
@@ -100,6 +198,22 @@ struct SidebarView: View {
             .background(.ultraThinMaterial)
         }
         .navigationTitle("Foundry")
+        .alert("Rename Session", isPresented: $showRenameAlert) {
+            TextField("Session name", text: $renameText)
+            Button("Cancel", role: .cancel) { }
+            Button("Rename") {
+                if let id = renamingSessionID {
+                    sessionManager.renameSession(id, name: renameText)
+                }
+            }
+        }
+        .sheet(item: $editingNotesID) { sessionID in
+            SessionNotesSheet(
+                sessionID: sessionID,
+                initialNotes: sessionManager.sessions.first(where: { $0.id == sessionID })?.notes ?? ""
+            )
+            .environmentObject(sessionManager)
+        }
     }
 
     private func openNewSession() {
@@ -114,6 +228,7 @@ struct SidebarView: View {
 
     @ViewBuilder
     private func sessionContextMenu(_ session: Session) -> some View {
+        // Status actions
         if session.status == .running || session.status == .idle {
             Button("Stop Session") {
                 sessionManager.stopSession(session.id)
@@ -128,9 +243,26 @@ struct SidebarView: View {
 
         Divider()
 
+        // Organization
+        Button(session.isPinned ? "Unpin" : "Pin to Top") {
+            sessionManager.togglePin(session.id)
+        }
+
+        Button(session.isFavorite ? "Remove from Favorites" : "Add to Favorites") {
+            sessionManager.toggleFavorite(session.id)
+        }
+
+        Button("Edit Notes...") {
+            editingNotesID = session.id
+        }
+
+        Divider()
+
+        // Edit
         Button("Rename...") {
             renamingSessionID = session.id
             renameText = session.name
+            showRenameAlert = true
         }
 
         Button("Duplicate Session") {
@@ -144,6 +276,7 @@ struct SidebarView: View {
 
         Divider()
 
+        // Filesystem
         Button("Copy Project Path") {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(session.projectPath, forType: .string)
@@ -165,6 +298,7 @@ struct SidebarView: View {
 
 struct SessionRow: View {
     let session: Session
+    var compact: Bool = false
     @Environment(\.colorScheme) private var colorScheme
     @State private var isPulsing = false
 
@@ -174,7 +308,7 @@ struct SessionRow: View {
             ZStack {
                 Circle()
                     .fill(statusColor.opacity(0.15))
-                    .frame(width: 24, height: 24)
+                    .frame(width: compact ? 20 : 24, height: compact ? 20 : 24)
                     .scaleEffect(session.status == .running && isPulsing ? 1.2 : 1.0)
                     .opacity(session.status == .running && isPulsing ? 0.5 : 1.0)
                     .animation(
@@ -202,9 +336,21 @@ struct SessionRow: View {
             }
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(session.name)
-                    .font(.system(.body, weight: .medium))
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    if session.isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.orange)
+                    }
+                    if session.isFavorite {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.yellow)
+                    }
+                    Text(session.name)
+                        .font(.system(compact ? .callout : .body, weight: .medium))
+                        .lineLimit(1)
+                }
 
                 HStack(spacing: 6) {
                     // Model badge
@@ -215,11 +361,32 @@ struct SessionRow: View {
                         .padding(.vertical, 1)
                         .background(modelColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 3))
 
-                    Text(abbreviatedPath)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .truncationMode(.head)
+                    if !compact {
+                        Text(abbreviatedPath)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                    }
+                }
+
+                // Tags
+                if !session.tags.isEmpty && !compact {
+                    HStack(spacing: 4) {
+                        ForEach(session.tags.prefix(3), id: \.self) { tag in
+                            Text(tag)
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(.quaternary, in: Capsule())
+                        }
+                        if session.tags.count > 3 {
+                            Text("+\(session.tags.count - 3)")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
                 }
             }
 
@@ -235,6 +402,12 @@ struct SessionRow: View {
                 Text(session.createdAt, style: .relative)
                     .font(.caption2)
                     .foregroundStyle(.quaternary)
+
+                if !session.notes.isEmpty {
+                    Image(systemName: "note.text")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
         .padding(.vertical, 2)
@@ -255,4 +428,47 @@ struct SessionRow: View {
     private var abbreviatedPath: String {
         Utilities.abbreviatePath(session.projectPath)
     }
+}
+
+// MARK: - Session Notes Sheet
+
+struct SessionNotesSheet: View {
+    let sessionID: UUID
+    @State var initialNotes: String
+    @EnvironmentObject var sessionManager: SessionManager
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: Spacing.lg) {
+            HStack {
+                Text("Session Notes")
+                    .font(.headline)
+                Spacer()
+                Button("Done") {
+                    sessionManager.updateSessionNotes(sessionID, notes: initialNotes)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+
+            TextEditor(text: $initialNotes)
+                .font(.system(.body, design: .default))
+                .frame(minHeight: 150)
+                .scrollContentBackground(.hidden)
+                .padding(Spacing.sm)
+                .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: CornerRadius.md))
+
+            Text("Add notes to help you remember what this session was about.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(Spacing.xl)
+        .frame(width: 420, height: 300)
+    }
+}
+
+// Make UUID conform to Identifiable for .sheet(item:)
+extension UUID: @retroactive Identifiable {
+    public var id: UUID { self }
 }

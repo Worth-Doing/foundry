@@ -5,6 +5,7 @@ struct TimelineView: View {
     @State private var autoScroll = true
     @State private var searchText = ""
     @State private var filterType: EventTypeFilter = .all
+    @State private var collapsedGroups: Set<String> = []
 
     enum EventTypeFilter: String, CaseIterable {
         case all = "All"
@@ -21,7 +22,7 @@ struct TimelineView: View {
         case .all:
             events = events.filter { $0.type != .costUpdate && $0.type != .sessionStart }
         case .messages:
-            events = events.filter { $0.type == .userInput || $0.type == .assistantMessage }
+            events = events.filter { $0.type == .userInput || $0.type == .assistantMessage || $0.type == .thinking }
         case .tools:
             events = events.filter {
                 $0.type == .toolUse || $0.type == .toolResult ||
@@ -48,6 +49,36 @@ struct TimelineView: View {
         return events
     }
 
+    /// Group consecutive tool events together for visual pairing
+    var groupedEvents: [EventGroup] {
+        var groups: [EventGroup] = []
+        var currentToolEvents: [SessionEvent] = []
+
+        for event in filteredEvents {
+            let isToolRelated = event.type == .toolUse || event.type == .toolResult ||
+                                event.type == .bashCommand || event.type == .bashOutput ||
+                                event.type == .fileRead || event.type == .fileWrite ||
+                                event.type == .fileEdit || event.type == .search ||
+                                event.type == .subAgentSpawn || event.type == .subAgentResult
+
+            if isToolRelated {
+                currentToolEvents.append(event)
+            } else {
+                if !currentToolEvents.isEmpty {
+                    groups.append(EventGroup(events: currentToolEvents, kind: .toolSequence))
+                    currentToolEvents = []
+                }
+                groups.append(EventGroup(events: [event], kind: .single))
+            }
+        }
+
+        if !currentToolEvents.isEmpty {
+            groups.append(EventGroup(events: currentToolEvents, kind: .toolSequence))
+        }
+
+        return groups
+    }
+
     private var isLoading: Bool {
         session.status == .running
     }
@@ -66,9 +97,29 @@ struct TimelineView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(filteredEvents) { event in
-                                TimelineEventView(event: event)
-                                    .id(event.id)
+                            ForEach(Array(groupedEvents.enumerated()), id: \.element.id) { _, group in
+                                switch group.kind {
+                                case .single:
+                                    if let event = group.events.first {
+                                        TimelineEventView(event: event)
+                                            .id(event.id.uuidString)
+                                    }
+                                case .toolSequence:
+                                    ToolSequenceView(
+                                        events: group.events,
+                                        isCollapsed: collapsedGroups.contains(group.id),
+                                        onToggle: {
+                                            withAnimation(FoundryAnimation.micro) {
+                                                if collapsedGroups.contains(group.id) {
+                                                    collapsedGroups.remove(group.id)
+                                                } else {
+                                                    collapsedGroups.insert(group.id)
+                                                }
+                                            }
+                                        }
+                                    )
+                                    .id(group.events.last?.id.uuidString ?? group.id)
+                                }
                             }
 
                             // Typing indicator
@@ -102,7 +153,7 @@ struct TimelineView: View {
             if isLoading {
                 proxy.scrollTo("typing-indicator", anchor: .bottom)
             } else if let lastEvent = filteredEvents.last {
-                proxy.scrollTo(lastEvent.id, anchor: .bottom)
+                proxy.scrollTo(lastEvent.id.uuidString, anchor: .bottom)
             }
         }
     }
@@ -142,12 +193,31 @@ struct TimelineView: View {
 
             Spacer()
 
+            // Event count
             Text("\(filteredEvents.count)")
                 .font(.system(.caption, design: .monospaced, weight: .medium))
                 .foregroundStyle(.tertiary)
                 .padding(.horizontal, Spacing.sm)
                 .padding(.vertical, Spacing.xxs)
                 .background(.ultraThinMaterial, in: Capsule())
+
+            // Collapse all tool groups
+            Button {
+                withAnimation(FoundryAnimation.snappy) {
+                    if collapsedGroups.isEmpty {
+                        for group in groupedEvents where group.kind == .toolSequence {
+                            collapsedGroups.insert(group.id)
+                        }
+                    } else {
+                        collapsedGroups.removeAll()
+                    }
+                }
+            } label: {
+                Image(systemName: collapsedGroups.isEmpty ? "rectangle.compress.vertical" : "rectangle.expand.vertical")
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .help(collapsedGroups.isEmpty ? "Collapse tool groups" : "Expand tool groups")
 
             Toggle(isOn: $autoScroll) {
                 Image(systemName: "arrow.down.to.line")
@@ -179,13 +249,34 @@ struct TimelineView: View {
                 .font(.title3.weight(.medium))
                 .foregroundStyle(.secondary)
 
-            Text("Type a message below and press Enter to send")
+            Text("Type a message below to begin working with Claude Code")
                 .font(.callout)
                 .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+
+            // Quick action hints
+            VStack(spacing: Spacing.sm) {
+                quickHint(icon: "hammer.fill", text: "Ask Claude to build, fix, or refactor code")
+                quickHint(icon: "magnifyingglass", text: "Explore and understand your codebase")
+                quickHint(icon: "terminal.fill", text: "Run commands and manage your project")
+            }
+            .padding(.top, Spacing.md)
 
             Spacer()
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func quickHint(icon: String, text: String) -> some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .frame(width: 20)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
     }
 
     private var noMatchState: some View {
@@ -204,13 +295,135 @@ struct TimelineView: View {
                 filterType = .all
             }
             .buttonStyle(.bordered)
+            .controlSize(.small)
             Spacer()
         }
         .frame(maxWidth: .infinity)
     }
 }
 
-// MARK: - Typing Indicator (animated dots)
+// MARK: - Event Grouping
+
+struct EventGroup: Identifiable {
+    let id: String
+    let events: [SessionEvent]
+    let kind: Kind
+
+    enum Kind {
+        case single
+        case toolSequence
+    }
+
+    init(events: [SessionEvent], kind: Kind) {
+        self.events = events
+        self.kind = kind
+        self.id = events.first?.id.uuidString ?? UUID().uuidString
+    }
+}
+
+// MARK: - Tool Sequence View (collapsible group)
+
+struct ToolSequenceView: View {
+    let events: [SessionEvent]
+    let isCollapsed: Bool
+    let onToggle: () -> Void
+    @State private var isHovered = false
+
+    private var toolSummary: String {
+        let toolNames = events.compactMap { $0.metadata?.toolName }
+        let unique = NSOrderedSet(array: toolNames).array as? [String] ?? toolNames
+        return unique.joined(separator: " > ")
+    }
+
+    private var fileCount: Int {
+        Set(events.compactMap { $0.metadata?.filePath }).count
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if isCollapsed {
+                // Collapsed summary bar
+                Button(action: onToggle) {
+                    HStack(spacing: Spacing.sm) {
+                        Rectangle()
+                            .fill(Color.orange.opacity(0.4))
+                            .frame(width: 3)
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.tertiary)
+
+                        Image(systemName: "wrench.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+
+                        Text("\(events.count) actions")
+                            .font(.system(.caption, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        Text(toolSummary)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+
+                        if fileCount > 0 {
+                            Text("\(fileCount) files")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(.quaternary, in: Capsule())
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
+                    .background(isHovered ? Color.orange.opacity(0.04) : Color.clear)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .onHover { isHovered = $0 }
+            } else {
+                // Expanded: show all events with collapse header
+                VStack(spacing: 0) {
+                    // Group header
+                    Button(action: onToggle) {
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.tertiary)
+
+                            Image(systemName: "wrench.fill")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+
+                            Text("\(events.count) actions")
+                                .font(.system(.caption, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 4)
+                        .background(isHovered ? Color.orange.opacity(0.04) : Color.clear)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { isHovered = $0 }
+
+                    // Individual events
+                    ForEach(events) { event in
+                        TimelineEventView(event: event)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Typing Indicator
 
 struct TypingIndicator: View {
     @State private var phase = 0.0

@@ -11,6 +11,14 @@ let package = Package(
             swiftSettings: [
                 .swiftLanguageMode(.v5)
             ]
+        ),
+        .testTarget(
+            name: "FoundryTests",
+            dependencies: ["Foundry"],
+            path: "Tests/FoundryTests",
+            swiftSettings: [
+                .swiftLanguageMode(.v5)
+            ]
         )
     ]
 )

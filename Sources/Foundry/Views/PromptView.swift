@@ -121,8 +121,18 @@ struct PromptView: View {
         session?.status == .running
     }
 
+    private var sessionError: SessionSendError? {
+        sessionManager.sessionErrors[sessionID]
+    }
+
     var body: some View {
         VStack(spacing: 0) {
+            // Error recovery banner
+            if let error = sessionError {
+                errorBanner(error)
+                Divider()
+            }
+
             // Processing indicator
             if isProcessing {
                 HStack(spacing: Spacing.sm) {
@@ -231,6 +241,12 @@ struct PromptView: View {
             .padding(.vertical, 10)
             .background(.bar)
         }
+        .onAppear {
+            // Restore preserved draft if any
+            if let draft = sessionManager.consumePreservedDraft(sessionID) {
+                promptText = draft
+            }
+        }
     }
 
     private var canSend: Bool {
@@ -243,5 +259,81 @@ struct PromptView: View {
 
         sessionManager.sendMessage(to: sessionID, message: message)
         promptText = ""
+    }
+
+    // MARK: - Error Recovery Banner
+
+    @ViewBuilder
+    private func errorBanner(_ error: SessionSendError) -> some View {
+        VStack(spacing: Spacing.sm) {
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.orange)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(error.userMessage)
+                        .font(.system(.callout, weight: .medium))
+                        .foregroundStyle(.primary)
+
+                    if let desc = error.errorDescription, desc != error.userMessage {
+                        Text(desc)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+
+                Spacer()
+
+                // Dismiss button
+                Button {
+                    sessionManager.dismissError(sessionID)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 20, height: 20)
+                        .background(.quaternary.opacity(0.5), in: Circle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Recovery action buttons
+            HStack(spacing: Spacing.md) {
+                if error.shouldRecreateSession {
+                    Button {
+                        sessionManager.recreateSession(sessionID)
+                    } label: {
+                        Label("New Session", systemImage: "arrow.counterclockwise")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+
+                if error.isRetryable {
+                    Button {
+                        sessionManager.retryLastMessage(sessionID)
+                    } label: {
+                        Label("Retry", systemImage: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+
+                Spacer()
+            }
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, Spacing.sm)
+        .background(.orange.opacity(0.06))
+        .overlay(
+            Rectangle()
+                .fill(.orange.opacity(0.2))
+                .frame(height: 1),
+            alignment: .bottom
+        )
     }
 }

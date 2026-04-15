@@ -40,7 +40,7 @@ struct SettingsView: View {
                 .tabItem { Label("About", systemImage: "info.circle") }
                 .tag(SettingsTab.about)
         }
-        .frame(width: 560, height: 420)
+        .frame(width: 600, height: 480)
     }
 
     // MARK: - General Tab
@@ -66,9 +66,34 @@ struct SettingsView: View {
                 Toggle("Show Terminal Panel", isOn: $appSettings.showTerminalPanel)
                 Toggle("Show File Changes Panel", isOn: $appSettings.showFilePanel)
             }
+
+            Section("Keyboard Shortcuts") {
+                shortcutRow("Command Palette", shortcut: "Cmd+K")
+                shortcutRow("New Session", shortcut: "Cmd+N")
+                shortcutRow("Previous/Next Session", shortcut: "Cmd+[ / ]")
+                shortcutRow("Stop Session", shortcut: "Cmd+.")
+                shortcutRow("Toggle Terminal", shortcut: "Cmd+Shift+T")
+                shortcutRow("Toggle Files", shortcut: "Cmd+Shift+F")
+                shortcutRow("Navigate Pages", shortcut: "Cmd+1-5")
+                shortcutRow("Copy Last Response", shortcut: "Cmd+Shift+C")
+            }
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    private func shortcutRow(_ label: String, shortcut: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.callout)
+            Spacer()
+            Text(shortcut)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 4))
+        }
     }
 
     // MARK: - Models Tab
@@ -219,24 +244,94 @@ struct SettingsView: View {
 
     private var advancedTab: some View {
         Form {
-            Section("Claude Code") {
+            Section("Claude Code Installation") {
                 if let path = sessionManager.claudePath {
-                    LabeledContent("Path", value: path)
+                    LabeledContent("Executable") {
+                        HStack(spacing: Spacing.sm) {
+                            Text(path)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .font(.caption)
+                        }
+                    }
+                } else {
+                    LabeledContent("Executable") {
+                        HStack(spacing: Spacing.sm) {
+                            Text("Not found")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.red)
+                                .font(.caption)
+                        }
+                    }
                 }
+
                 if let version = sessionManager.claudeVersion {
                     LabeledContent("Version", value: version)
                 }
 
+                // Connection test
+                Button("Test Claude Code Connection") {
+                    sessionManager.checkClaudeAvailability()
+                }
+
                 Button("Run Health Check (/doctor)") {
-                    if let path = ClaudeProcessController.findClaudePath() {
+                    let env = ShellEnvironmentResolver.shared.resolvedEnvironment()
+                    if let path = ClaudeProcessController.findClaudePath(environment: env) {
                         DispatchQueue.global().async {
                             let process = Process()
                             process.executableURL = URL(fileURLWithPath: path)
                             process.arguments = ["doctor"]
+                            process.environment = env
                             try? process.run()
                             process.waitUntilExit()
                         }
                     }
+                }
+            }
+
+            Section("Environment") {
+                let env = ShellEnvironmentResolver.shared.resolvedEnvironment()
+                let pathDirs = (env["PATH"] ?? "").components(separatedBy: ":").filter { !$0.isEmpty }
+
+                LabeledContent("Shell") {
+                    Text(env["SHELL"] ?? "unknown")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+
+                LabeledContent("PATH directories") {
+                    Text("\(pathDirs.count)")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+
+                DisclosureGroup("PATH Details") {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(pathDirs.prefix(15), id: \.self) { dir in
+                            HStack(spacing: Spacing.sm) {
+                                Image(systemName: FileManager.default.fileExists(atPath: dir) ? "checkmark" : "xmark")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(FileManager.default.fileExists(atPath: dir) ? .green : .red)
+                                Text(dir)
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        if pathDirs.count > 15 {
+                            Text("... and \(pathDirs.count - 15) more")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+
+                Button("Refresh Environment Cache") {
+                    ShellEnvironmentResolver.shared.invalidateCache()
+                    sessionManager.checkClaudeAvailability()
                 }
             }
 
@@ -288,7 +383,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text("Version 3.0.0")
+            Text("Version 4.0.0")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .padding(.horizontal, Spacing.md)

@@ -4,6 +4,7 @@ struct TimelineEventView: View {
     let event: SessionEvent
     @State private var isExpanded = true
     @State private var isHovered = false
+    @State private var showCopied = false
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -48,6 +49,30 @@ struct TimelineEventView: View {
             : Color.black.opacity(0.03)
     }
 
+    // MARK: - Copy helper
+
+    private func copyToClipboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        showCopied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            showCopied = false
+        }
+    }
+
+    private var copyButton: some View {
+        Button {
+            copyToClipboard(event.content)
+        } label: {
+            Image(systemName: showCopied ? "checkmark" : "doc.on.doc")
+                .font(.system(size: 10))
+                .foregroundStyle(showCopied ? Color.green : Color.secondary.opacity(0.5))
+        }
+        .buttonStyle(.plain)
+        .help("Copy to clipboard")
+        .transition(.opacity)
+    }
+
     // MARK: - User message
 
     private var userBubble: some View {
@@ -64,10 +89,13 @@ struct TimelineEventView: View {
                     .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 if isHovered {
-                    Text(event.timestamp, style: .time)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .transition(.opacity)
+                    HStack(spacing: Spacing.sm) {
+                        copyButton
+                        Text(event.timestamp, style: .time)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
         }
@@ -94,11 +122,14 @@ struct TimelineEventView: View {
                     .glassBackground(cornerRadius: CornerRadius.xl, shadow: isHovered)
 
                 if isHovered {
-                    Text(event.timestamp, style: .time)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .padding(.leading, Spacing.sm)
-                        .transition(.opacity)
+                    HStack(spacing: Spacing.sm) {
+                        copyButton
+                        Text(event.timestamp, style: .time)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.leading, Spacing.sm)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
 
@@ -161,38 +192,74 @@ struct TimelineEventView: View {
                         .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
 
                     if isHovered {
+                        copyButton
                         Text(event.timestamp, style: .time)
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
+
+                    Spacer()
+
+                    // Collapse/expand for long content
+                    if contentLength > 200 {
+                        Button {
+                            withAnimation(FoundryAnimation.micro) { isExpanded.toggle() }
+                        } label: {
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
 
                 // Content
-                if isExpanded, let cmd = event.metadata?.command, !cmd.isEmpty {
-                    Text(cmd)
-                        .font(.system(.callout, design: .monospaced))
-                        .textSelection(.enabled)
-                        .padding(Spacing.md)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(codeBg, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
-                } else if isExpanded, !event.content.isEmpty {
-                    Text(event.content)
-                        .font(.system(.callout, design: .monospaced))
-                        .textSelection(.enabled)
-                        .lineLimit(6)
-                        .padding(Spacing.md)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(codeBg, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+                if let cmd = event.metadata?.command, !cmd.isEmpty {
+                    if isExpanded || cmd.count <= 200 {
+                        Text(cmd)
+                            .font(.system(.callout, design: .monospaced))
+                            .textSelection(.enabled)
+                            .padding(Spacing.md)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(codeBg, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+                    } else {
+                        Text(String(cmd.prefix(200)) + "...")
+                            .font(.system(.callout, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                            .padding(Spacing.md)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(codeBg, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+                    }
+                } else if !event.content.isEmpty {
+                    if isExpanded || event.content.count <= 200 {
+                        Text(event.content)
+                            .font(.system(.callout, design: .monospaced))
+                            .textSelection(.enabled)
+                            .lineLimit(isExpanded ? nil : 6)
+                            .padding(Spacing.md)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(codeBg, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+                    } else {
+                        Text(String(event.content.prefix(200)) + "...")
+                            .font(.system(.callout, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                            .padding(Spacing.md)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(codeBg, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+                    }
                 }
             }
             .padding(Spacing.md)
             .glassBackground(cornerRadius: CornerRadius.md, shadow: isHovered)
-            .onTapGesture {
-                withAnimation(FoundryAnimation.micro) { isExpanded.toggle() }
-            }
 
             Spacer(minLength: 40)
         }
+    }
+
+    private var contentLength: Int {
+        event.metadata?.command?.count ?? event.content.count
     }
 
     // MARK: - Tool result
@@ -205,6 +272,19 @@ struct TimelineEventView: View {
                 .padding(.leading, 14)
 
             VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    if !isExpanded {
+                        Text(String(event.content.prefix(100)) + (event.content.count > 100 ? "..." : ""))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    if isHovered {
+                        copyButton
+                    }
+                }
+
                 if isExpanded {
                     ScrollView {
                         Text(event.content)
@@ -212,19 +292,13 @@ struct TimelineEventView: View {
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxHeight: 150)
-                    .padding(8)
-                    .background(codeBg.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
-                } else {
-                    Text(String(event.content.prefix(80)) + (event.content.count > 80 ? "..." : ""))
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .padding(8)
+                    .frame(maxHeight: 200)
                 }
             }
+            .padding(8)
+            .background(codeBg.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
             .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
+                withAnimation(FoundryAnimation.micro) { isExpanded.toggle() }
             }
 
             Spacer(minLength: 40)
@@ -244,17 +318,25 @@ struct TimelineEventView: View {
                     .foregroundStyle(.red)
             }
 
-            Text(event.content)
-                .font(.system(.callout))
-                .foregroundStyle(.red)
-                .textSelection(.enabled)
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.red.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(.red.opacity(0.15), lineWidth: 1)
-                )
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text(event.content)
+                    .font(.system(.callout))
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+
+                if let exitCode = event.metadata?.exitCode {
+                    Text("Exit code: \(exitCode)")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.red.opacity(0.7))
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.red.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(.red.opacity(0.15), lineWidth: 1)
+            )
 
             Spacer(minLength: 40)
         }
@@ -283,6 +365,22 @@ struct TimelineEventView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
+
+                Spacer()
+
+                // Open in Finder
+                if let path = event.metadata?.filePath {
+                    Button {
+                        NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
+                    } label: {
+                        Image(systemName: "arrow.up.forward.square")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Reveal in Finder")
+                    .opacity(isHovered ? 1 : 0)
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -306,10 +404,20 @@ struct TimelineEventView: View {
                     .font(.caption)
                     .foregroundStyle(.indigo)
 
+                Text(event.metadata?.toolName ?? "Search")
+                    .font(.system(.caption, weight: .medium))
+                    .foregroundStyle(.indigo)
+
                 Text(event.metadata?.searchPattern ?? event.content)
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+
+                Spacer()
+
+                if isHovered {
+                    copyButton
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -349,11 +457,14 @@ struct TimelineEventView: View {
                     Text(event.content)
                         .font(.system(.callout))
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(isExpanded ? nil : 2)
                 }
             }
             .padding(10)
             .background(.purple.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+            .onTapGesture {
+                withAnimation(FoundryAnimation.micro) { isExpanded.toggle() }
+            }
 
             Spacer(minLength: 40)
         }

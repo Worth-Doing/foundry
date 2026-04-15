@@ -35,6 +35,14 @@ struct FoundryApp: App {
                     showNewSessionDialog()
                 }
                 .keyboardShortcut("o", modifiers: [.command])
+
+                Button("Close Session") {
+                    if let id = sessionManager.activeSessionID {
+                        sessionManager.stopSession(id)
+                    }
+                }
+                .keyboardShortcut("w", modifiers: [.command])
+                .disabled(sessionManager.activeSessionID == nil)
             }
 
             // Session menu
@@ -60,12 +68,48 @@ struct FoundryApp: App {
 
                 Divider()
 
+                Button("Previous Session") {
+                    navigateSession(direction: -1)
+                }
+                .keyboardShortcut("[", modifiers: [.command])
+
+                Button("Next Session") {
+                    navigateSession(direction: 1)
+                }
+                .keyboardShortcut("]", modifiers: [.command])
+
+                Divider()
+
+                Button("Pin/Unpin Session") {
+                    if let id = sessionManager.activeSessionID {
+                        sessionManager.togglePin(id)
+                    }
+                }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+                .disabled(sessionManager.activeSessionID == nil)
+
+                Button("Favorite/Unfavorite Session") {
+                    if let id = sessionManager.activeSessionID {
+                        sessionManager.toggleFavorite(id)
+                    }
+                }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+                .disabled(sessionManager.activeSessionID == nil)
+
+                Divider()
+
                 Button("Clear Conversation") {
                     if let id = sessionManager.activeSessionID {
                         let cmd = ClaudeCommandRegistry.allCommands.first { $0.id == "clear" }!
                         sessionManager.sendCommand(to: id, command: cmd)
                     }
                 }
+                .disabled(sessionManager.activeSessionID == nil)
+
+                Button("Copy Last Response") {
+                    copyLastResponse()
+                }
+                .keyboardShortcut("c", modifiers: [.command, .shift])
                 .disabled(sessionManager.activeSessionID == nil)
             }
 
@@ -83,6 +127,34 @@ struct FoundryApp: App {
                         executeCommand(command)
                     }
                 }
+            }
+
+            // Navigate menu
+            CommandMenu("Navigate") {
+                Button("Sessions") {
+                    NotificationCenter.default.post(name: .navigateToPage, object: NavigationPage.sessions)
+                }
+                .keyboardShortcut("1", modifiers: [.command])
+
+                Button("Skills") {
+                    NotificationCenter.default.post(name: .navigateToPage, object: NavigationPage.skills)
+                }
+                .keyboardShortcut("2", modifiers: [.command])
+
+                Button("Agents") {
+                    NotificationCenter.default.post(name: .navigateToPage, object: NavigationPage.agents)
+                }
+                .keyboardShortcut("3", modifiers: [.command])
+
+                Button("MCP Servers") {
+                    NotificationCenter.default.post(name: .navigateToPage, object: NavigationPage.mcp)
+                }
+                .keyboardShortcut("4", modifiers: [.command])
+
+                Button("Usage & Costs") {
+                    NotificationCenter.default.post(name: .navigateToPage, object: NavigationPage.usage)
+                }
+                .keyboardShortcut("5", modifiers: [.command])
             }
 
             // View menu
@@ -105,6 +177,13 @@ struct FoundryApp: App {
                     appSettings.showFilePanel.toggle()
                 }
                 .keyboardShortcut("f", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button("Reload Sessions") {
+                    sessionManager.loadClaudeHistory()
+                }
+                .keyboardShortcut("r", modifiers: [.command, .option])
             }
         }
 
@@ -138,4 +217,33 @@ struct FoundryApp: App {
         guard let id = sessionManager.activeSessionID else { return }
         sessionManager.sendCommand(to: id, command: command)
     }
+
+    private func navigateSession(direction: Int) {
+        guard let currentID = sessionManager.activeSessionID,
+              let currentIdx = sessionManager.sessions.firstIndex(where: { $0.id == currentID }) else {
+            // No active session — select the first one
+            if let first = sessionManager.sessions.first {
+                sessionManager.switchToSession(first.id)
+            }
+            return
+        }
+
+        let newIdx = currentIdx + direction
+        guard newIdx >= 0, newIdx < sessionManager.sessions.count else { return }
+        sessionManager.switchToSession(sessionManager.sessions[newIdx].id)
+    }
+
+    private func copyLastResponse() {
+        guard let session = sessionManager.activeSession else { return }
+        if let lastResponse = session.events.last(where: { $0.type == .assistantMessage }) {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(lastResponse.content, forType: .string)
+        }
+    }
+}
+
+// MARK: - Navigation Notification
+
+extension Notification.Name {
+    static let navigateToPage = Notification.Name("navigateToPage")
 }

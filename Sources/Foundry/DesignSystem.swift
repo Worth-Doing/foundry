@@ -23,6 +23,21 @@ enum CornerRadius {
     static let xxl: CGFloat = 22
 }
 
+// MARK: - Typography Presets
+
+enum FoundryFont {
+    static let pageTitle = Font.system(.title2, weight: .bold)
+    static let sectionTitle = Font.system(.headline, weight: .semibold)
+    static let body = Font.system(.body)
+    static let bodyMedium = Font.system(.body, weight: .medium)
+    static let caption = Font.system(.caption)
+    static let captionMedium = Font.system(.caption, weight: .medium)
+    static let mono = Font.system(.callout, design: .monospaced)
+    static let monoSmall = Font.system(.caption, design: .monospaced)
+    static let monoBold = Font.system(.callout, design: .monospaced, weight: .semibold)
+    static let badge = Font.system(size: 10, weight: .medium, design: .rounded)
+}
+
 // MARK: - Gradient Tokens
 
 enum GradientTokens {
@@ -58,6 +73,7 @@ enum FoundryAnimation {
     static let snappy = Animation.spring(response: 0.25, dampingFraction: 0.85)
     static let gentle = Animation.spring(response: 0.5, dampingFraction: 0.75)
     static let micro = Animation.easeInOut(duration: 0.15)
+    static let fade = Animation.easeInOut(duration: 0.2)
 }
 
 // MARK: - Glass Background Modifier
@@ -182,6 +198,134 @@ struct GlowEffect: ViewModifier {
     }
 }
 
+// MARK: - Shimmer Loading Effect
+
+struct ShimmerEffect: ViewModifier {
+    @State private var phase: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                GeometryReader { geo in
+                    LinearGradient(
+                        colors: [
+                            .clear,
+                            Color.primary.opacity(0.04),
+                            .clear
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: geo.size.width * 2)
+                    .offset(x: -geo.size.width + phase * geo.size.width * 3)
+                }
+                .mask(content)
+            )
+            .onAppear {
+                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                    phase = 1.0
+                }
+            }
+    }
+}
+
+// MARK: - Empty State View
+
+struct EmptyStateView: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    var action: (() -> Void)?
+    var actionLabel: String?
+
+    var body: some View {
+        VStack(spacing: Spacing.lg) {
+            Spacer()
+
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.06))
+                    .frame(width: 72, height: 72)
+                Image(systemName: icon)
+                    .font(.system(size: 28))
+                    .foregroundStyle(.quaternary)
+            }
+
+            Text(title)
+                .font(FoundryFont.sectionTitle)
+                .foregroundStyle(.secondary)
+
+            Text(subtitle)
+                .font(FoundryFont.caption)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 280)
+
+            if let action = action, let label = actionLabel {
+                Button(action: action) {
+                    Text(label)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .padding(.top, Spacing.sm)
+            }
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Loading Skeleton
+
+struct SkeletonRow: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            Circle()
+                .fill(Color.primary.opacity(0.06))
+                .frame(width: 24, height: 24)
+
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.primary.opacity(0.06))
+                    .frame(width: 140, height: 12)
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.primary.opacity(0.04))
+                    .frame(width: 200, height: 10)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, Spacing.sm)
+        .modifier(ShimmerEffect())
+    }
+}
+
+// MARK: - Status Badge
+
+struct StatusBadge: View {
+    let status: SessionStatus
+    var compact: Bool = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(Utilities.statusColor(for: status))
+                .frame(width: compact ? 6 : 8, height: compact ? 6 : 8)
+                .glowEffect(color: Utilities.statusColor(for: status), isActive: status == .running)
+
+            if !compact {
+                Text(status.rawValue.capitalized)
+                    .font(.system(.caption2, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
 // MARK: - View Extensions
 
 extension View {
@@ -207,5 +351,9 @@ extension View {
 
     func glowEffect(color: Color, isActive: Bool) -> some View {
         modifier(GlowEffect(color: color, isActive: isActive))
+    }
+
+    func shimmer() -> some View {
+        modifier(ShimmerEffect())
     }
 }

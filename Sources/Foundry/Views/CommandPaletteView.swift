@@ -1,24 +1,207 @@
 import SwiftUI
 
+// MARK: - Palette Item types
+
+enum PaletteItemKind {
+    case command(ClaudeCommand)
+    case session(Session)
+    case project(String)
+    case searchAction(String)
+    case action(String, String, () -> Void) // id, label, action
+}
+
+struct PaletteItem: Identifiable {
+    let id: String
+    let icon: String
+    let title: String
+    let subtitle: String
+    let badge: String?
+    let kind: PaletteItemKind
+    var isEnabled: Bool = true
+}
+
+// MARK: - Command Palette View
+
 struct CommandPaletteView: View {
     @EnvironmentObject var sessionManager: SessionManager
     @Binding var isPresented: Bool
     @State private var searchText = ""
     @State private var selectedIndex = 0
+    @State private var mode: PaletteMode = .commands
     @FocusState private var isSearchFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
 
-    private var filteredCommands: [ClaudeCommand] {
-        ClaudeCommandRegistry.search(searchText)
+    enum PaletteMode: String, CaseIterable {
+        case commands = "Commands"
+        case sessions = "Sessions"
+        case projects = "Projects"
+        case search = "Search"
     }
 
-    private var groupedCommands: [(ClaudeCommand.CommandCategory, [ClaudeCommand])] {
-        let commands = filteredCommands
-        return ClaudeCommand.CommandCategory.allCases.compactMap { category in
-            let cmds = commands.filter { $0.category == category }
-            return cmds.isEmpty ? nil : (category, cmds)
+    // MARK: - Items
+
+    private var items: [PaletteItem] {
+        switch mode {
+        case .commands:
+            return commandItems
+        case .sessions:
+            return sessionItems
+        case .projects:
+            return projectItems
+        case .search:
+            return searchItems
         }
     }
+
+    private var commandItems: [PaletteItem] {
+        let commands = ClaudeCommandRegistry.search(searchText)
+        let hasSession = sessionManager.activeSessionID != nil
+
+        // Add built-in palette actions at the top
+        var items: [PaletteItem] = []
+
+        if searchText.isEmpty {
+            items.append(PaletteItem(
+                id: "_switch_sessions",
+                icon: "bubble.left.and.bubble.right",
+                title: "Switch Session...",
+                subtitle: "Jump to another session",
+                badge: nil,
+                kind: .action("_switch_sessions", "Switch Session") { [self] in
+                    mode = .sessions
+                    searchText = ""
+                }
+            ))
+            items.append(PaletteItem(
+                id: "_open_project",
+                icon: "folder.badge.plus",
+                title: "Open Project...",
+                subtitle: "Start a new session in a project",
+                badge: nil,
+                kind: .action("_open_project", "Open Project") {
+                    mode = .projects
+                    searchText = ""
+                }
+            ))
+            items.append(PaletteItem(
+                id: "_search_all",
+                icon: "magnifyingglass",
+                title: "Search Everything...",
+                subtitle: "Search across all sessions",
+                badge: nil,
+                kind: .action("_search_all", "Search") { [self] in
+                    mode = .search
+                    searchText = ""
+                }
+            ))
+        }
+
+        // Claude commands
+        for cmd in commands {
+            items.append(PaletteItem(
+                id: cmd.id,
+                icon: cmd.icon,
+                title: cmd.displayName,
+                subtitle: cmd.description,
+                badge: cmd.name,
+                kind: .command(cmd),
+                isEnabled: !cmd.requiresSession || hasSession
+            ))
+        }
+
+        return items
+    }
+
+    private var sessionItems: [PaletteItem] {
+        let q = searchText.lowercased()
+        let sessions = q.isEmpty ? sessionManager.sessions : sessionManager.sessions.filter {
+            $0.name.localizedCaseInsensitiveContains(q) ||
+            $0.projectPath.localizedCaseInsensitiveContains(q)
+        }
+
+        return sessions.map { session in
+            PaletteItem(
+                id: session.id.uuidString,
+                icon: session.status == .running ? "circle.fill" : "bubble.left",
+                title: session.name,
+                subtitle: Utilities.abbreviatePath(session.projectPath),
+                badge: Utilities.displayModelName(session.modelName),
+                kind: .session(session)
+            )
+        }
+    }
+
+    private var projectItems: [PaletteItem] {
+        let q = searchText.lowercased()
+        let projects = sessionManager.recentProjects
+
+        var items: [PaletteItem] = []
+
+        // "Open new" always at top
+        items.append(PaletteItem(
+            id: "_browse_project",
+            icon: "folder.badge.plus",
+            title: "Browse for Project...",
+            subtitle: "Open a new project from Finder",
+            badge: nil,
+            kind: .action("_browse", "Browse") { }
+        ))
+
+        // Recent projects
+        for path in projects {
+            if !q.isEmpty && !path.localizedCaseInsensitiveContains(q) { continue }
+            items.append(PaletteItem(
+                id: "project_\(path)",
+                icon: "folder.fill",
+                title: URL(fileURLWithPath: path).lastPathComponent,
+                subtitle: Utilities.abbreviatePath(path),
+                badge: nil,
+                kind: .project(path)
+            ))
+        }
+
+        return items
+    }
+
+    private var searchItems: [PaletteItem] {
+        guard !searchText.isEmpty else {
+            return [PaletteItem(
+                id: "_search_hint",
+                icon: "magnifyingglass",
+                title: "Type to search...",
+                subtitle: "Search sessions, messages, file changes",
+                badge: nil,
+                kind: .action("_hint", "", { }),
+                isEnabled: false
+            )]
+        }
+
+        let results = sessionManager.searchSessions(query: searchText)
+        return results.prefix(20).map { result in
+            PaletteItem(
+                id: result.id.uuidString,
+                icon: searchMatchIcon(result.matchType),
+                title: result.sessionName,
+                subtitle: result.preview,
+                badge: result.matchType.rawValue,
+                kind: .searchAction(result.sessionID.uuidString)
+            )
+        }
+    }
+
+    private func searchMatchIcon(_ type: SearchMatchType) -> String {
+        switch type {
+        case .sessionName: return "text.bubble"
+        case .projectPath: return "folder"
+        case .userMessage: return "person"
+        case .assistantMessage: return "bubble.left"
+        case .fileChange: return "doc"
+        case .sessionNotes: return "note.text"
+        case .tag: return "tag"
+        }
+    }
+
+    // MARK: - Body
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,7 +210,28 @@ struct CommandPaletteView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
 
-                TextField("Search commands...", text: $searchText)
+                if mode != .commands {
+                    Button {
+                        withAnimation(FoundryAnimation.snappy) {
+                            mode = .commands
+                            searchText = ""
+                        }
+                    } label: {
+                        HStack(spacing: 2) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 9, weight: .bold))
+                            Text(mode.rawValue)
+                                .font(.system(.caption, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(.quaternary.opacity(0.5), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                TextField(placeholderText, text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(.title3))
                     .focused($isSearchFocused)
@@ -60,28 +264,59 @@ struct CommandPaletteView: View {
 
             Divider()
 
-            // Commands list
+            // Items list
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(groupedCommands, id: \.0) { category, commands in
-                        Section {
-                            ForEach(commands) { command in
-                                CommandRow(
-                                    command: command,
-                                    isSelected: isCommandSelected(command),
-                                    hasActiveSession: sessionManager.activeSessionID != nil
-                                ) {
-                                    execute(command)
+                    if mode == .commands && searchText.isEmpty {
+                        // Show mode sections for commands
+                        let paletteActions = items.filter {
+                            if case .action = $0.kind { return true }
+                            return false
+                        }
+                        let commandList = items.filter {
+                            if case .command = $0.kind { return true }
+                            return false
+                        }
+
+                        if !paletteActions.isEmpty {
+                            Section {
+                                ForEach(paletteActions) { item in
+                                    PaletteRow(item: item, isSelected: isItemSelected(item)) {
+                                        executeItem(item)
+                                    }
+                                }
+                            } header: {
+                                sectionHeader("Quick Actions")
+                            }
+                        }
+
+                        // Group commands by category
+                        let grouped = Dictionary(grouping: commandList) { item -> String in
+                            if case .command(let cmd) = item.kind {
+                                return cmd.category.rawValue
+                            }
+                            return ""
+                        }
+                        let sortedKeys = ClaudeCommand.CommandCategory.allCases.map(\.rawValue)
+                        ForEach(sortedKeys, id: \.self) { key in
+                            if let groupItems = grouped[key], !groupItems.isEmpty {
+                                Section {
+                                    ForEach(groupItems) { item in
+                                        PaletteRow(item: item, isSelected: isItemSelected(item)) {
+                                            executeItem(item)
+                                        }
+                                    }
+                                } header: {
+                                    sectionHeader(key)
                                 }
                             }
-                        } header: {
-                            Text(category.rawValue)
-                                .font(.system(.caption2, weight: .semibold))
-                                .foregroundStyle(.tertiary)
-                                .textCase(.uppercase)
-                                .padding(.horizontal, 16)
-                                .padding(.top, 10)
-                                .padding(.bottom, 2)
+                        }
+                    } else {
+                        // Flat list for other modes
+                        ForEach(items) { item in
+                            PaletteRow(item: item, isSelected: isItemSelected(item)) {
+                                executeItem(item)
+                            }
                         }
                     }
                 }
@@ -108,13 +343,35 @@ struct CommandPaletteView: View {
                         .font(.system(.caption2, design: .monospaced))
                     Text("Close")
                 }
+
+                Spacer()
+
+                // Mode tabs
+                ForEach(PaletteMode.allCases, id: \.self) { m in
+                    Button {
+                        withAnimation(FoundryAnimation.snappy) {
+                            mode = m
+                            searchText = ""
+                            selectedIndex = 0
+                        }
+                    } label: {
+                        Text(m.rawValue)
+                            .font(.caption2)
+                            .foregroundStyle(mode == m ? .primary : .tertiary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(mode == m ? Color.accentColor.opacity(0.1) : Color.clear, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             .font(.caption2)
             .foregroundStyle(.tertiary)
-            .padding(Spacing.sm)
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
             .background(.ultraThinMaterial)
         }
-        .frame(width: 520)
+        .frame(width: 560)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
@@ -130,26 +387,76 @@ struct CommandPaletteView: View {
         }
     }
 
-    private func isCommandSelected(_ command: ClaudeCommand) -> Bool {
-        let flatCommands = filteredCommands
-        guard selectedIndex < flatCommands.count else { return false }
-        return flatCommands[selectedIndex].id == command.id
+    private var placeholderText: String {
+        switch mode {
+        case .commands: return "Search commands..."
+        case .sessions: return "Search sessions..."
+        case .projects: return "Search projects..."
+        case .search: return "Search everything..."
+        }
+    }
+
+    private func sectionHeader(_ text: String) -> some View {
+        Text(text)
+            .font(.system(.caption2, weight: .semibold))
+            .foregroundStyle(.tertiary)
+            .textCase(.uppercase)
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 2)
+    }
+
+    private func isItemSelected(_ item: PaletteItem) -> Bool {
+        let allItems = items
+        guard selectedIndex < allItems.count else { return false }
+        return allItems[selectedIndex].id == item.id
     }
 
     private func executeSelected() {
-        let commands = filteredCommands
-        guard selectedIndex < commands.count else { return }
-        execute(commands[selectedIndex])
+        let allItems = items
+        guard selectedIndex < allItems.count else { return }
+        executeItem(allItems[selectedIndex])
     }
 
-    private func execute(_ command: ClaudeCommand) {
-        if command.requiresSession {
-            guard let sessionID = sessionManager.activeSessionID else { return }
-            sessionManager.sendCommand(to: sessionID, command: command)
-        } else {
-            executeSystemCommand(command)
+    private func executeItem(_ item: PaletteItem) {
+        guard item.isEnabled else { return }
+
+        switch item.kind {
+        case .command(let cmd):
+            if cmd.requiresSession {
+                guard let sessionID = sessionManager.activeSessionID else { return }
+                sessionManager.sendCommand(to: sessionID, command: cmd)
+            } else {
+                executeSystemCommand(cmd)
+            }
+            isPresented = false
+
+        case .session(let session):
+            sessionManager.switchToSession(session.id)
+            isPresented = false
+
+        case .project(let path):
+            let id = sessionManager.createSession(projectPath: path)
+            sessionManager.startSession(id)
+            isPresented = false
+
+        case .searchAction(let sessionIDString):
+            if let uuid = UUID(uuidString: sessionIDString) {
+                sessionManager.switchToSession(uuid)
+            }
+            isPresented = false
+
+        case .action(let id, _, let action):
+            if id == "_browse" {
+                if let url = Utilities.showOpenProjectPanel() {
+                    let sid = sessionManager.createSession(projectPath: url.path)
+                    sessionManager.startSession(sid)
+                    isPresented = false
+                }
+            } else {
+                action()
+            }
         }
-        isPresented = false
     }
 
     private func executeSystemCommand(_ command: ClaudeCommand) {
@@ -176,12 +483,14 @@ struct CommandPaletteView: View {
     }
 
     private func runClaudeCommand(_ args: [String]) {
-        guard let path = ClaudeProcessController.findClaudePath() else { return }
+        let env = ShellEnvironmentResolver.shared.resolvedEnvironment()
+        guard let path = ClaudeProcessController.findClaudePath(environment: env) else { return }
 
         DispatchQueue.global(qos: .userInitiated).async {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: path)
             process.arguments = args
+            process.environment = env
 
             let pipe = Pipe()
             process.standardOutput = pipe
@@ -205,38 +514,39 @@ struct CommandPaletteView: View {
     }
 }
 
-struct CommandRow: View {
-    let command: ClaudeCommand
+// MARK: - Palette Row
+
+struct PaletteRow: View {
+    let item: PaletteItem
     let isSelected: Bool
-    let hasActiveSession: Bool
     let action: () -> Void
     @Environment(\.colorScheme) private var colorScheme
-
-    private var isEnabled: Bool {
-        !command.requiresSession || hasActiveSession
-    }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: command.icon)
+                Image(systemName: item.icon)
                     .frame(width: 24)
-                    .foregroundStyle(isEnabled ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(item.isEnabled ? Color.accentColor : Color.secondary)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(command.displayName)
+                    Text(item.title)
                         .font(.system(.body, weight: .medium))
+                        .lineLimit(1)
 
-                    Text(command.description)
+                    Text(item.subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
 
                 Spacer()
 
-                Text(command.name)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.tertiary)
+                if let badge = item.badge {
+                    Text(badge)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
             }
             .padding(.horizontal, Spacing.lg)
             .padding(.vertical, Spacing.sm)
@@ -253,7 +563,7 @@ struct CommandRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.5)
+        .disabled(!item.isEnabled)
+        .opacity(item.isEnabled ? 1 : 0.5)
     }
 }

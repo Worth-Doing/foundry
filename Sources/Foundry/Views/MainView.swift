@@ -26,6 +26,13 @@ struct MainView: View {
             CommandPaletteView(isPresented: $showCommandPalette)
                 .environmentObject(sessionManager)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToPage)) { notification in
+            if let page = notification.object as? NavigationPage {
+                withAnimation(FoundryAnimation.snappy) {
+                    currentPage = page
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -355,6 +362,25 @@ struct WelcomeView: View {
 
 struct FileChangesPanel: View {
     let session: Session
+    @State private var selectedFile: FileChange?
+    @State private var showDiffForFile: FileChange?
+
+    /// Deduplicated file changes (latest per path)
+    private var uniqueChanges: [FileChange] {
+        var seen = Set<String>()
+        var result: [FileChange] = []
+        for change in session.fileChanges.reversed() {
+            if seen.insert(change.filePath).inserted {
+                result.append(change)
+            }
+        }
+        return result.reversed()
+    }
+
+    /// Summary counts
+    private var createdCount: Int { uniqueChanges.filter { $0.changeType == .created }.count }
+    private var modifiedCount: Int { uniqueChanges.filter { $0.changeType == .modified }.count }
+    private var deletedCount: Int { uniqueChanges.filter { $0.changeType == .deleted }.count }
 
     var body: some View {
         if session.fileChanges.isEmpty {
@@ -371,20 +397,67 @@ struct FileChangesPanel: View {
                 Text("No file changes yet")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                Text("Claude Code will show file changes here")
+                    .font(.caption2)
+                    .foregroundStyle(.quaternary)
                 Spacer()
             }
             .frame(maxWidth: .infinity)
         } else {
-            List(session.fileChanges) { change in
-                FileChangeRow(change: change)
+            VStack(spacing: 0) {
+                // Summary bar
+                HStack(spacing: Spacing.md) {
+                    if createdCount > 0 {
+                        Label("\(createdCount)", systemImage: "plus.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                    }
+                    if modifiedCount > 0 {
+                        Label("\(modifiedCount)", systemImage: "pencil.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                    if deletedCount > 0 {
+                        Label("\(deletedCount)", systemImage: "minus.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                    }
+                    Spacer()
+                    Text("\(uniqueChanges.count) files")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.sm)
+                .background(.ultraThinMaterial)
+
+                Divider()
+
+                List(uniqueChanges, selection: $selectedFile) { change in
+                    FileChangeRow(change: change)
+                        .tag(change)
+                        .contextMenu {
+                            Button("Reveal in Finder") {
+                                NSWorkspace.shared.selectFile(change.filePath, inFileViewerRootedAtPath: "")
+                            }
+                            Button("Copy Path") {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(change.filePath, forType: .string)
+                            }
+                            Button("Open in Default Editor") {
+                                NSWorkspace.shared.open(URL(fileURLWithPath: change.filePath))
+                            }
+                        }
+                }
+                .listStyle(.inset)
             }
-            .listStyle(.inset)
         }
     }
 }
 
 struct FileChangeRow: View {
     let change: FileChange
+    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -394,16 +467,48 @@ struct FileChangeRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(URL(fileURLWithPath: change.filePath).lastPathComponent)
-                    .font(.system(.body, design: .monospaced))
+                    .font(.system(.callout, design: .monospaced, weight: .medium))
 
-                Text(change.filePath)
-                    .font(.caption)
+                Text(Utilities.abbreviatePath(change.filePath))
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
+
+            Spacer()
+
+            // Action buttons on hover
+            if isHovered {
+                Button {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: change.filePath))
+                } label: {
+                    Image(systemName: "arrow.up.forward.square")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Open file")
+
+                Button {
+                    NSWorkspace.shared.selectFile(change.filePath, inFileViewerRootedAtPath: "")
+                } label: {
+                    Image(systemName: "folder")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Reveal in Finder")
+            }
+
+            Text(change.changeType.rawValue.prefix(1).uppercased())
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(changeColor)
+                .frame(width: 18, height: 18)
+                .background(changeColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
+        .onHover { isHovered = $0 }
     }
 
     private var changeIcon: String {

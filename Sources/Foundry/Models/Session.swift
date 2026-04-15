@@ -23,6 +23,27 @@ struct Session: Identifiable, Codable, Sendable {
     var tokenUsage: TokenUsage
     var claudeSessionID: String?
 
+    // Session organization
+    var isPinned: Bool
+    var isFavorite: Bool
+    var notes: String
+    var tags: [String]
+
+    /// Derived project name from path
+    var projectName: String {
+        URL(fileURLWithPath: projectPath).lastPathComponent
+    }
+
+    /// Whether this session has meaningful content
+    var hasContent: Bool {
+        !events.isEmpty || tokenUsage.inputTokens > 0
+    }
+
+    /// Message count (user inputs only)
+    var messageCount: Int {
+        events.filter { $0.type == .userInput }.count
+    }
+
     init(
         id: UUID = UUID(),
         name: String = "New Session",
@@ -42,6 +63,10 @@ struct Session: Identifiable, Codable, Sendable {
         self.modelName = modelName
         self.tokenUsage = TokenUsage()
         self.claudeSessionID = nil
+        self.isPinned = false
+        self.isFavorite = false
+        self.notes = ""
+        self.tags = []
     }
 }
 
@@ -53,7 +78,7 @@ struct TokenUsage: Codable, Sendable {
     var estimatedCostUSD: Double = 0.0
 }
 
-struct FileChange: Identifiable, Codable, Sendable {
+struct FileChange: Identifiable, Codable, Sendable, Hashable {
     let id: UUID
     let filePath: String
     let changeType: FileChangeType
@@ -69,14 +94,14 @@ struct FileChange: Identifiable, Codable, Sendable {
     }
 }
 
-enum FileChangeType: String, Codable, Sendable {
+enum FileChangeType: String, Codable, Sendable, Hashable {
     case created
     case modified
     case deleted
     case renamed
 }
 
-struct DiffLine: Identifiable, Codable, Sendable {
+struct DiffLine: Identifiable, Codable, Sendable, Hashable {
     let id: UUID
     let type: DiffLineType
     let content: String
@@ -92,7 +117,7 @@ struct DiffLine: Identifiable, Codable, Sendable {
     }
 }
 
-enum DiffLineType: String, Codable, Sendable {
+enum DiffLineType: String, Codable, Sendable, Hashable {
     case addition
     case deletion
     case context
