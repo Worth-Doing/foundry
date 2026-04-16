@@ -5,6 +5,7 @@ Foundry.app/
 *.dmg
 *.icns
 *.png
+!Resources/screenshots/*.png
 AppIcon.iconset/
 Foundry.entitlements
 .DS_Store

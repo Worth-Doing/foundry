@@ -38,6 +38,45 @@
 
 ---
 
+## Screenshots
+
+<p align="center">
+  <img src="Resources/screenshots/foundry-main.png" alt="Foundry — Main View" width="800" />
+  <br><em>Welcome screen with session history, recent projects, and navigation sidebar</em>
+</p>
+
+<p align="center">
+  <img src="Resources/screenshots/foundry-session.png" alt="Foundry — Session Timeline" width="800" />
+  <br><em>Session timeline with code blocks, tool events, agent spawns, and status bar</em>
+</p>
+
+<p align="center">
+  <img src="Resources/screenshots/foundry-usage.png" alt="Foundry — Usage & Costs" width="800" />
+  <br><em>Usage dashboard with cost analytics, token breakdown, and per-session table</em>
+</p>
+
+<details>
+<summary><strong>More screenshots</strong></summary>
+
+<p align="center">
+  <img src="Resources/screenshots/foundry-skills.png" alt="Foundry — Skills Browser" width="800" />
+  <br><em>Skills browser — built-in and marketplace plugins with one-click install</em>
+</p>
+
+<p align="center">
+  <img src="Resources/screenshots/foundry-agents.png" alt="Foundry — Agents" width="800" />
+  <br><em>Agents management — view built-in agents and add custom ones</em>
+</p>
+
+<p align="center">
+  <img src="Resources/screenshots/foundry-mcp.png" alt="Foundry — MCP Servers" width="800" />
+  <br><em>MCP server management — add, configure, and remove MCP servers</em>
+</p>
+
+</details>
+
+---
+
 ## Download
 
 <p align="center">
